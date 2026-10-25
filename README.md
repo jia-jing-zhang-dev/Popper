@@ -10,7 +10,10 @@ Every word you look up is saved, and you can review it later with spaced-repetit
 You don't need a dictionary app, a browser tab, or a flash-card deck to set up. You learn the
 words that come up in the book you're actually reading, at the moment you need them.
 
-<!-- demo -->
+![Word Popper demo: looking up words while reading Pride and Prejudice](docs/demo.gif)
+
+▶ **[Watch the full demo with sound](docs/demo.mp4)** (1:49): English and Spanish books,
+screenshot OCR, settings, and spaced-repetition review.
 
 ## Features
 
@@ -140,6 +143,23 @@ settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags
 i18n.py             interface strings
 ```
+
+## How the demo was made
+
+The demo is recorded for real, with no mock-ups. [`demo/record.py`](demo/record.py) opens
+[`demo/book.html`](demo/book.html) full-screen (public-domain excerpts from *Pride and Prejudice*
+and *Don Quijote*), runs Word Popper with a throw-away data folder, and drives the mouse and
+keyboard while ffmpeg records the screen. [`demo/edit.py`](demo/edit.py) adds the captions and
+key badges, and rebuilds the audio from Word Popper's own playback log. To re-record:
+
+```bat
+.venv\Scripts\python -m pip install -r demo\requirements.txt
+.venv\Scripts\python demo\make_assets.py
+.venv\Scripts\python demo\record.py
+.venv\Scripts\python demo\edit.py
+```
+
+Snipping Tool must be in **Rectangle** mode. The script switches it for you.
 
 ## License
 
