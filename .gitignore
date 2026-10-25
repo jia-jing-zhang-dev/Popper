@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+settings.json
+vocab.db
+demo/_frames/
+demo/_work/
