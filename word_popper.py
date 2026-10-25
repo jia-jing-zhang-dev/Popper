@@ -1,44 +1,43 @@
-"""Word Popper — 复制或截图一个英文单词，自动翻译并朗读；桌面上的小卡片点一下再读一遍。
+"""Word Popper — look up any word you're reading, hear it, and review it later.
 
-用法：
-  - 选中一个单词/短语/句子，按一下 Ctrl+Shift（同时按下再松开）→ 翻译 + 发音
-  - Win+Shift+S 截图包含单词的区域 → OCR 识别 → 翻译 + 发音
-  - 查过的单词自动存进词库（vocab.db），右键卡片 →“复习单词”按遗忘曲线复习
-  - 左键点卡片：再读一遍；拖动：移动位置
-  - 右键卡片：复习、词库、最近单词、美音/英音、暂停监听、退出
+  - Select a word, phrase or sentence and tap Ctrl+Shift  -> translation + pronunciation
+  - Win+Shift+S a word on screen (images, PDFs, videos)   -> OCR -> translation + pronunciation
+  - Every word you look up goes into your word list; right-click the card -> Review
+  - Click the card to hear the word again; drag it anywhere; right-click for everything else
 """
 
-import asyncio
 import ctypes
-import hashlib
 import json
 import os
 import queue
 import re
-import subprocess
-import tempfile
+import sys
 import threading
 import time
 import tkinter as tk
-import urllib.parse
 from tkinter import messagebox
-import urllib.request
 
 from PIL import Image, ImageGrab
 
+import i18n
+from i18n import t
+from languages import LANGUAGES, label, normalize, voice_for
+from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
+from settings_window import SettingsWindow
+from speech import Speaker
 from vocab import ReviewWindow, Vocab, VocabWindow
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_PATH = os.path.join(APP_DIR, "settings.json")
-VOCAB_PATH = os.path.join(APP_DIR, "vocab.db")
-AUDIO_DIR = os.path.join(tempfile.gettempdir(), "word_popper_audio")
-os.makedirs(AUDIO_DIR, exist_ok=True)
+SCRIPT_PATH = os.path.abspath(__file__)
+DATA_DIR = os.environ.get("WORD_POPPER_HOME") or os.path.dirname(SCRIPT_PATH)
+SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
+VOCAB_PATH = os.path.join(DATA_DIR, "vocab.db")
+EVENT_LOG = os.environ.get("WORD_POPPER_EVENTS")  # optional playback log (used to sync the demo video)
 
-VOICES = {"美音": "en-US-AriaNeural", "英音": "en-GB-SoniaNeural"}
-MAX_TEXT_LEN = 300       # 选中的文字超过这个长度就不翻译
-VOCAB_MAX_WORDS = 4      # 超过这么多词（句子）只翻译，不存进词库
-HOTKEY_MAX_SECONDS = 1.0  # Ctrl+Shift 按住超过这个时间不算“按一下”
-MAX_IMAGE_PIXELS = 1_500_000  # 太大的图片（整屏截图）不做 OCR
+MAX_TEXT_LEN = 300         # longer selections are ignored
+COPY_MAX_LEN = 80          # in copy mode, only short copies count as lookups
+VOCAB_MAX_WORDS = 4        # sentences are translated but not saved to the word list
+MAX_IMAGE_PIXELS = 1_500_000  # skip OCR for big images (full-screen captures)
+HOTKEY_MAX_SECONDS = 1.0   # holding Ctrl+Shift longer than this isn't a "tap"
 EXPANDED_SECONDS = 8
 
 BG = "#1f2430"
@@ -47,17 +46,19 @@ FG = "#f2f4f8"
 FG_DIM = "#9aa3b5"
 ACCENT = "#7cc4ff"
 
-CJK_RE = re.compile(r"[一-鿿]")
-LATIN_RE = re.compile(r"[A-Za-z]")
+LETTER_RE = re.compile(r"\w", re.UNICODE)
 
 user32 = ctypes.windll.user32
-winmm = ctypes.windll.winmm
 user32.GetAsyncKeyState.restype = ctypes.c_short
 
 VK_SHIFT, VK_CONTROL, VK_C = 0x10, 0x11, 0x43
 MODIFIER_VKS = {VK_SHIFT, VK_CONTROL, 0xA0, 0xA1, 0xA2, 0xA3}
-OTHER_VKS = [vk for vk in range(1, 256) if vk not in MODIFIER_VKS]  # 含鼠标键、Alt、Win
+OTHER_VKS = [vk for vk in range(1, 256) if vk not in MODIFIER_VKS]  # includes mouse buttons, Alt, Win
 KEYEVENTF_KEYUP = 0x2
+
+# Windows UI language (primary id) -> our language code, for first-run defaults
+WINDOWS_LANGS = {0x09: "en", 0x11: "ja", 0x12: "ko", 0x0C: "fr", 0x07: "de", 0x0A: "es",
+                 0x10: "it", 0x16: "pt", 0x19: "ru", 0x2A: "vi"}
 
 
 def key_down(vk):
@@ -73,14 +74,31 @@ def send_ctrl_c():
 
 # ---------------------------------------------------------------- settings
 
+def system_language():
+    lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+    if lang_id & 0x3FF == 0x04:
+        return "zh-TW" if lang_id in (0x0404, 0x0C04, 0x1404) else "zh-CN"
+    return WINDOWS_LANGS.get(lang_id & 0x3FF, "en")
+
+
 def load_settings():
-    defaults = {"accent": "美音", "x": None, "bottom": None, "listening": True}
+    native = system_language()
+    settings = {"ui_lang": "zh" if native.startswith("zh") else "en",
+                "learn": "es" if native == "en" else "en",
+                "native": native, "voices": {}, "speed": "-10%", "trigger": "ctrl_shift",
+                "screenshots": True, "listening": True, "x": None, "bottom": None}
     try:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
-            defaults.update(json.load(f))
+            saved = json.load(f)
     except (OSError, ValueError):
-        pass
-    return defaults
+        saved = {}
+    if "accent" in saved:  # settings from the first version
+        settings["voices"]["en"] = "UK" if saved.pop("accent") == "英音" else "US"
+    settings.update(saved)
+    for key in ("learn", "native"):
+        if settings[key] not in LANGUAGES:
+            settings[key] = "en"
+    return settings
 
 
 def save_settings(settings):
@@ -91,126 +109,23 @@ def save_settings(settings):
         pass
 
 
-# ---------------------------------------------------------------- network
-
-def http_json(url, timeout=6):
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def translate(text, target):
-    """Google 翻译免费接口。返回 (主翻译, [词性释义行])。"""
-    url = ("https://translate.googleapis.com/translate_a/single?client=gtx"
-           f"&sl=auto&tl={target}&hl=zh-CN&dt=t&dt=bd&q={urllib.parse.quote(text)}")
-    data = http_json(url)
-    main = "".join(seg[0] for seg in data[0] if seg and seg[0])
-    senses = []
-    if len(data) > 1 and data[1]:
-        for entry in data[1][:4]:
-            senses.append(f"{entry[0]}  {'；'.join(entry[1][:5])}")
-    return main, senses
-
-
-def youdao_lookup(word):
-    """有道词典：返回 ({"美音": 音标, "英音": 音标}, [释义行])，查不到就返回空。"""
-    try:
-        data = http_json("https://dict.youdao.com/jsonapi?q=" + urllib.parse.quote(word), timeout=5)
-        entry = data["ec"]["word"]
-        entry = entry[0] if isinstance(entry, list) else entry
-    except Exception:
-        return {}, []
-    ipa = {}
-    if entry.get("usphone"):
-        ipa["美音"] = f"/{entry['usphone']}/"
-    if entry.get("ukphone"):
-        ipa["英音"] = f"/{entry['ukphone']}/"
-    senses = []
-    for tr in entry.get("trs", [])[:4]:
-        try:
-            line = tr["tr"][0]["l"]["i"][0]
-        except (KeyError, IndexError, TypeError):
-            continue
-        if line.startswith("【名】"):  # 人名之类的释义没用
-            continue
-        line = re.sub(r"^([a-z]+\.) ", "\\1\u00a0", line)  # 词性和释义不要被换行拆开
-        senses.append(line if len(line) <= 70 else line[:70] + "…")
-    return ipa, senses
-
-
-# ---------------------------------------------------------------- speech
-
-class Speaker:
-    """后台线程：edge-tts 生成语音（带缓存），MCI 播放；没网时退回 Windows 自带 SAPI。"""
-
-    def __init__(self):
-        self.q = queue.Queue()
-        threading.Thread(target=self._run, daemon=True).start()
-
-    def say(self, text, voice):
-        self.q.put((text, voice))
-
-    def _mci(self, cmd):
-        winmm.mciSendStringW(cmd, None, 0, 0)
-
-    def _run(self):
-        while True:
-            text, voice = self.q.get()
-            while not self.q.empty():  # 只读最新的那个
-                text, voice = self.q.get()
-            try:
-                path = self._synthesize(text, voice)
-                self._mci("close wp")
-                self._mci(f'open "{path}" type mpegvideo alias wp')
-                self._mci("play wp")
-            except Exception:
-                self._sapi(text)
-
-    def _synthesize(self, text, voice):
-        key = hashlib.md5(f"{voice}|{text}".encode()).hexdigest()
-        path = os.path.join(AUDIO_DIR, key + ".mp3")
-        if not os.path.exists(path) or os.path.getsize(path) == 0:
-            import edge_tts
-            tmp = path + ".part"
-            asyncio.run(edge_tts.Communicate(text, voice, rate="-10%").save(tmp))
-            os.replace(tmp, path)
-        return path
-
-    def _sapi(self, text):
-        safe = text.replace("'", "''")
-        subprocess.Popen(
-            ["powershell", "-NoProfile", "-Command",
-             "Add-Type -AssemblyName System.Speech; "
-             f"(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{safe}')"],
-            creationflags=subprocess.CREATE_NO_WINDOW)
-
-
-# ---------------------------------------------------------------- OCR
-
-def ocr_image(img):
-    import winocr
-    img = img.convert("RGB")
-    # 小截图放大一下，识别率高很多
-    if img.height < 80:
-        scale = max(2, 80 // max(img.height, 1))
-        img = img.resize((img.width * scale, img.height * scale), Image.LANCZOS)
-    result = winocr.recognize_pil_sync(img, "en")
-    return " ".join(result.get("text", "").split())
-
-
 # ---------------------------------------------------------------- helpers
 
 def clean_text(text):
     text = " ".join(text.split())
-    return text.strip(" \t\"'“”‘’.,;:!?()[]{}<>")
+    return text.strip(" \t\"'“”‘’.,;:!?()[]{}<>«»「」『』。，、！？")
 
 
-def looks_like_lookup(text):
-    if not text or len(text) > MAX_TEXT_LEN:
-        return False
-    if not (LATIN_RE.search(text) or CJK_RE.search(text)):
+def looks_like_lookup(text, max_len=MAX_TEXT_LEN):
+    if not text or len(text) > max_len or not LETTER_RE.search(text) or text.isdigit():
         return False
     return not re.search(r"https?://|www\.", text)
+
+
+def log_event(path, text):
+    if EVENT_LOG:
+        with open(EVENT_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{time.time():.3f}\t{path}\t{text}\n")
 
 
 # ---------------------------------------------------------------- UI
@@ -222,17 +137,20 @@ class App:
         except Exception:
             pass
 
+        self.script_path = SCRIPT_PATH
         self.settings = load_settings()
-        self.speaker = Speaker()
-        self.ui_q = queue.Queue()
+        i18n.set_language(self.settings["ui_lang"])
+        self.speaker = Speaker(on_play=log_event)
         self.vocab = Vocab(VOCAB_PATH)
-        self.hotkey = {"armed_at": None, "dirty": False}
-        self.review_win = self.vocab_win = None
-        self.current = None        # dict: word / speak / ipa / trans / senses
+        self.ui_q = queue.Queue()
+        self.current = None        # dict: word / trans / senses / pron / speak / speak_lang
         self.last_trigger = ("", 0.0)
         self.clip_seq = user32.GetClipboardSequenceNumber()
+        self.ignore_clip_until = 0.0
+        self.hotkey = {"armed_at": None, "dirty": False}
         self.collapse_job = None
         self.drag = None
+        self.review_win = self.vocab_win = self.settings_win = None
 
         root = self.root = tk.Tk()
         root.title("Word Popper")
@@ -240,23 +158,20 @@ class App:
         root.attributes("-topmost", True)
         root.attributes("-alpha", 0.96)
         root.configure(bg=BG)
+        self.scale = root.winfo_fpixels("1i") / 96
 
-        wrap = int(320 * root.winfo_fpixels("1i") / 96)  # 按屏幕缩放调整换行宽度
+        wrap = int(320 * self.scale)  # wrap width follows the display scaling
         self.frame = tk.Frame(root, bg=BG, padx=14, pady=8)
         self.frame.pack(fill="both", expand=True)
-        self.word_lbl = tk.Label(self.frame, text="🔊 Word Popper", bg=BG, fg=FG,
-                                 font=("Segoe UI Semibold", 12), anchor="w",
-                                 justify="left", wraplength=wrap)
-        self.ipa_lbl = tk.Label(self.frame, bg=BG, fg=ACCENT,
-                                font=("Segoe UI", 10), anchor="w")
-        self.trans_lbl = tk.Label(self.frame, bg=BG, fg=FG,
-                                  font=("Microsoft YaHei UI", 11), anchor="w",
-                                  justify="left", wraplength=wrap)
-        self.senses_lbl = tk.Label(self.frame, bg=BG, fg=FG_DIM,
-                                   font=("Microsoft YaHei UI", 9), anchor="w",
-                                   justify="left", wraplength=wrap)
+        self.word_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=("Segoe UI Semibold", 12),
+                                 anchor="w", justify="left", wraplength=wrap)
+        self.pron_lbl = tk.Label(self.frame, bg=BG, fg=ACCENT, font=("Segoe UI", 10), anchor="w")
+        self.trans_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=("Microsoft YaHei UI", 11),
+                                  anchor="w", justify="left", wraplength=wrap)
+        self.senses_lbl = tk.Label(self.frame, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9),
+                                   anchor="w", justify="left", wraplength=wrap)
         self.word_lbl.pack(fill="x")
-        self.detail_widgets = [self.ipa_lbl, self.trans_lbl, self.senses_lbl]
+        self.detail_widgets = [self.pron_lbl, self.trans_lbl, self.senses_lbl]
 
         for w in [root, self.frame, self.word_lbl, *self.detail_widgets]:
             w.bind("<ButtonPress-1>", self.on_press)
@@ -266,8 +181,8 @@ class App:
             w.bind("<Enter>", lambda e: self.set_bg(BG_HOVER))
             w.bind("<Leave>", lambda e: self.set_bg(BG))
 
-        self.place_window()
         self.update_status()
+        self.place_window()
         root.after(300, self.poll_clipboard)
         root.after(30, self.poll_hotkey)
         root.after(100, self.poll_ui_queue)
@@ -275,6 +190,7 @@ class App:
     # ---------- layout
 
     def place_window(self):
+        """Keep the card's bottom-left corner fixed so it grows upwards."""
         self.root.update_idletasks()
         w, h = self.root.winfo_reqwidth(), self.root.winfo_reqheight()
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
@@ -306,13 +222,15 @@ class App:
         self.place_window()
 
     def update_status(self):
-        if self.current:
-            text = f"🔊 {self.current['word']}"
-        else:
-            text = "🔊 Word Popper"
+        text = f"🔊 {self.current['word']}" if self.current else f"🔊 {t('idle')}"
         if not self.settings["listening"]:
-            text += "  (已暂停)"
+            text += f"  {t('paused')}"
         self.word_lbl.configure(text=text)
+
+    def flash(self, message):
+        self.word_lbl.configure(text=message)
+        self.place_window()
+        self.root.after(1500, lambda: (self.update_status(), self.place_window()))
 
     # ---------- mouse
 
@@ -338,38 +256,74 @@ class App:
             self.settings["bottom"] = self.root.winfo_y() + self.root.winfo_height()
             save_settings(self.settings)
         elif self.current:
-            self.speak_current()
+            self.speak_item(self.current)
             self.expand()
 
     def show_menu(self, e):
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label=f"复习单词（{self.vocab.due_count()} 个待复习）",
-                         command=self.open_review)
-        menu.add_command(label=f"我的词库（{self.vocab.count()} 个）", command=self.open_vocab)
+        menu.add_command(label=t("menu_review", n=self.vocab.due_count()), command=self.open_review)
+        menu.add_command(label=t("menu_vocab", n=self.vocab.count()), command=self.open_vocab)
         recent = tk.Menu(menu, tearoff=0)
         items = self.vocab.recent()
         for item in items:
             recent.add_command(label=f"{item['word']}   {item['trans'][:20]}",
                                command=lambda it=item: self.recall(it))
         if not items:
-            recent.add_command(label="(还没有)", state="disabled")
-        menu.add_cascade(label="最近的单词", menu=recent)
+            recent.add_command(label=t("menu_none"), state="disabled")
+        menu.add_cascade(label=t("menu_recent"), menu=recent)
         menu.add_separator()
-        for name in VOICES:
-            mark = "✓ " if self.settings["accent"] == name else "    "
-            menu.add_command(label=mark + name, command=lambda n=name: self.set_accent(n))
-        menu.add_separator()
-        menu.add_command(label="继续监听" if not self.settings["listening"] else "暂停监听",
+        menu.add_command(label=f"{t('menu_settings')}   ({LANGUAGES[self.settings['learn']][1]} → "
+                               f"{LANGUAGES[self.settings['native']][1]})", command=self.open_settings)
+        menu.add_command(label=t("menu_resume") if not self.settings["listening"] else t("menu_pause"),
                          command=self.toggle_listening)
-        menu.add_command(label="退出", command=self.root.destroy)
+        menu.add_command(label=t("menu_quit"), command=self.root.destroy)
         menu.tk_popup(e.x_root, e.y_root)
 
-    def set_accent(self, name):
-        self.settings["accent"] = name
-        save_settings(self.settings)
-        if self.current:
-            self.show_current()
-        self.speak_current()
+    # ---------- windows
+
+    @staticmethod
+    def _reuse(win):
+        if win and win.top.winfo_exists():
+            win.top.lift()
+            return True
+        return False
+
+    def open_review(self):
+        if self._reuse(self.review_win):
+            return
+        items, note = self.vocab.due(), ""
+        if not items:
+            items, note = self.vocab.random_pick(), t("review_random")
+        if not items:
+            messagebox.showinfo(t("review_title"), t("review_empty"), parent=self.root)
+            return
+        self.review_win = ReviewWindow(self, items, note)
+
+    def open_vocab(self):
+        if self._reuse(self.vocab_win):
+            self.vocab_win.refresh()
+            return
+        self.vocab_win = VocabWindow(self)
+
+    def open_settings(self):
+        if not self._reuse(self.settings_win):
+            self.settings_win = SettingsWindow(self)
+
+    def apply_settings(self, new):
+        learn_changed = new["learn"] != self.settings["learn"]
+        self.settings = new
+        save_settings(new)
+        i18n.set_language(new["ui_lang"])
+        self.update_status()
+        self.place_window()
+        if learn_changed and new["screenshots"]:
+            self.check_ocr_language()
+
+    def check_ocr_language(self):
+        learn = self.settings["learn"]
+        wanted = LANGUAGES[learn][3].split("-")[0].lower()
+        if not ocr_tag_for(learn).lower().startswith(wanted):
+            messagebox.showinfo("Word Popper", t("ocr_missing", lang=label(learn)), parent=self.root)
 
     def toggle_listening(self):
         self.settings["listening"] = not self.settings["listening"]
@@ -378,38 +332,15 @@ class App:
         self.update_status()
         self.place_window()
 
-    def open_review(self):
-        if self.review_win and self.review_win.top.winfo_exists():
-            self.review_win.top.lift()
-            return
-        items, note = self.vocab.due(), ""
-        if not items:
-            items = self.vocab.random_pick()
-            note = "今天没有到期的词，随机抽几个复习一下"
-        if not items:
-            messagebox.showinfo("复习单词", "词库还是空的，先去查几个单词吧。", parent=self.root)
-            return
-        self.review_win = ReviewWindow(self, items, note)
-
-    def open_vocab(self):
-        if self.vocab_win and self.vocab_win.top.winfo_exists():
-            self.vocab_win.refresh()
-            self.vocab_win.top.lift()
-            return
-        self.vocab_win = VocabWindow(self)
-
-    def voice(self):
-        return VOICES[self.settings["accent"]]
-
     def recall(self, item):
         self.current = item
         self.show_current()
-        self.speak_current()
+        self.speak_item(item)
 
-    # ---------- Ctrl+Shift 热键
+    # ---------- Ctrl+Shift hotkey
 
     def poll_hotkey(self):
-        """单独按一下 Ctrl+Shift（中间没按别的键、没点鼠标）就查选中的文字。"""
+        """A lone tap of Ctrl+Shift (no other key or mouse button in between) looks up the selection."""
         try:
             ctrl, shift = key_down(VK_CONTROL), key_down(VK_SHIFT)
             hk = self.hotkey
@@ -421,19 +352,20 @@ class App:
             else:
                 if (hk["armed_at"] is not None and not hk["dirty"]
                         and time.time() - hk["armed_at"] < HOTKEY_MAX_SECONDS
-                        and self.settings["listening"]):
+                        and self.settings["listening"] and self.settings["trigger"] == "ctrl_shift"):
                     self.grab_selection()
                 hk["armed_at"], hk["dirty"] = None, False
         finally:
             self.root.after(30, self.poll_hotkey)
 
     def grab_selection(self):
-        """模拟 Ctrl+C 拿到选中的文字，然后把剪贴板原来的文字放回去。"""
+        """Press Ctrl+C on the user's behalf to read the selection, then restore the old clipboard text."""
         try:
             old = self.root.clipboard_get()
         except tk.TclError:
             old = None
         before = user32.GetClipboardSequenceNumber()
+        self.ignore_clip_until = time.time() + 1.0
         send_ctrl_c()
         self.root.after(40, self.read_selection, before, old, 0)
 
@@ -442,7 +374,7 @@ class App:
             if tries < 12:
                 self.root.after(40, self.read_selection, before, old, tries + 1)
             else:
-                self.flash("没有选中文字")
+                self.flash(t("no_selection"))
             return
         try:
             text = self.root.clipboard_get()
@@ -454,83 +386,77 @@ class App:
         if text.strip():
             self.lookup(text)
         else:
-            self.flash("没有选中文字")
+            self.flash(t("no_selection"))
 
-    def flash(self, message):
-        self.word_lbl.configure(text=message)
-        self.place_window()
-        self.root.after(1500, lambda: (self.update_status(), self.place_window()))
-
-    # ---------- clipboard（只处理截图）
+    # ---------- clipboard (copy mode + screenshots)
 
     def poll_clipboard(self):
         try:
             seq = user32.GetClipboardSequenceNumber()
             if seq != self.clip_seq:
                 self.clip_seq = seq
-                if self.settings["listening"]:
+                if self.settings["listening"] and time.time() > self.ignore_clip_until:
                     self.handle_clipboard()
         finally:
             self.root.after(300, self.poll_clipboard)
 
     def handle_clipboard(self):
-        text = None
         try:
             text = self.root.clipboard_get()
         except tk.TclError:
-            pass
-        if text:  # 复制文字不再触发，查词改用 Ctrl+Shift
+            text = None
+        if text:
+            if self.settings["trigger"] == "copy":
+                self.lookup(text, max_len=COPY_MAX_LEN)
+            return
+        if not self.settings["screenshots"]:
             return
         try:
             img = ImageGrab.grabclipboard()
         except Exception:
             return
         if isinstance(img, Image.Image) and img.width * img.height <= MAX_IMAGE_PIXELS:
-            self.word_lbl.configure(text="🔍 识别截图中…")
+            self.word_lbl.configure(text=f"🔍 {t('reading_screenshot')}")
             self.place_window()
             threading.Thread(target=self.ocr_worker, args=(img,), daemon=True).start()
 
     def ocr_worker(self, img):
         try:
-            text = ocr_image(img)
+            text = ocr_image(img, self.settings["learn"])
         except Exception:
             text = ""
         self.ui_q.put(("ocr", text))
 
     # ---------- lookup
 
-    def lookup(self, raw):
+    def lookup(self, raw, max_len=MAX_TEXT_LEN):
         text = clean_text(raw)
-        if not looks_like_lookup(text):
+        if not looks_like_lookup(text, max_len):
             return
         last_text, last_time = self.last_trigger
         if self.current and text.lower() == last_text.lower() and time.time() - last_time < 2:
-            self.speak_current()
+            self.speak_item(self.current)
             self.expand()
             return
         self.last_trigger = (text, time.time())
 
-        is_chinese = bool(CJK_RE.search(text))
-        self.current = {"word": text, "speak": None if is_chinese else text,
-                        "ipa": {}, "trans": "翻译中…", "senses": []}
+        self.current = {"word": text, "trans": t("translating"), "senses": [], "pron": {},
+                        "speak": None, "speak_lang": self.settings["learn"]}
+        # Non-CJK text is most likely in the language being learned: speak it right away
+        # instead of waiting for the translation (unless the user's own language is Latin-script)
+        native_cjk = self.settings["native"].startswith(("zh", "ja", "ko"))
+        if native_cjk and not CJK_RE.search(text):
+            self.current["speak"] = text
+            self.speak_item(self.current)
         self.show_current()
-        if not is_chinese:
-            self.speak_current()
         threading.Thread(target=self.lookup_worker, args=(self.current,), daemon=True).start()
 
     def lookup_worker(self, item):
-        is_chinese = item["speak"] is None
         try:
-            main, senses = translate(item["word"], "en" if is_chinese else "zh-CN")
+            result = look_up(item["word"], self.settings["learn"], self.settings["native"])
         except Exception:
-            main, senses = "（翻译失败，检查网络）", []
-        ipa = {}
-        english = (main if is_chinese else item["word"]).strip()
-        if english and len(english.split()) <= 3 and LATIN_RE.search(english):
-            ipa, yd_senses = youdao_lookup(english)
-            if yd_senses and not is_chinese:
-                senses = yd_senses
-        self.ui_q.put(("result", item, main, senses, ipa))
+            result = None
+        self.ui_q.put(("result", item, result))
 
     def poll_ui_queue(self):
         try:
@@ -543,41 +469,51 @@ class App:
                         self.update_status()
                         self.place_window()
                 elif msg[0] == "result":
-                    _, item, main, senses, ipa = msg
-                    item["trans"], item["senses"], item["ipa"] = main, senses, ipa
-                    if item["speak"] is None:  # 中文 → 读英文翻译
-                        item["speak"] = main
-                        if item is self.current:
-                            self.speak_current()
-                    if (not main.startswith("（翻译失败")
-                            and len(item["word"].split()) <= VOCAB_MAX_WORDS):
-                        self.vocab.add(item)
-                    if item is self.current:
-                        self.show_current()
+                    self.on_result(msg[1], msg[2])
         except queue.Empty:
             pass
         self.root.after(100, self.poll_ui_queue)
 
+    def on_result(self, item, result):
+        if result is None:
+            item["trans"] = t("translate_failed")
+        else:
+            early = (item["speak"], normalize(item["speak_lang"]))
+            item.update(result)
+            # Speak now unless the early guess already said the same thing with the same voice
+            if item is self.current and early != (item["speak"], normalize(item["speak_lang"])):
+                self.speak_item(item)
+            if len(item["word"].split()) <= VOCAB_MAX_WORDS:
+                self.vocab.add(item)
+        if item is self.current:
+            self.show_current()
+
+    def pron_text(self, item):
+        pron = item.get("pron") or {}
+        variant = self.settings["voices"].get(item.get("speak_lang"))
+        return pron.get(variant) or pron.get("*") or next(iter(pron.values()), "")
+
     def show_current(self):
         item = self.current
         self.update_status()
-        ipa = item["ipa"]
-        self.ipa_lbl.configure(text=ipa.get(self.settings["accent"]) or next(iter(ipa.values()), ""))
+        self.pron_lbl.configure(text=self.pron_text(item))
         self.trans_lbl.configure(text=item["trans"])
         self.senses_lbl.configure(text="\n".join(item["senses"]))
         self.expand()
 
-    def speak_current(self):
-        if self.current and self.current.get("speak"):
-            self.speaker.say(self.current["speak"], VOICES[self.settings["accent"]])
+    def speak_item(self, item):
+        lang = normalize(item.get("speak_lang")) or self.settings["learn"]
+        if item.get("speak"):
+            voice = voice_for(lang, self.settings["voices"].get(lang))
+            self.speaker.say(item["speak"], voice, self.settings["speed"])
 
     def run(self):
         self.root.mainloop()
 
 
 if __name__ == "__main__":
-    # 只允许一个实例（开机自启后再双击启动也不会出现两张卡片）
+    # Single instance: launching again while it's running does nothing
     _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "WordPopperSingleInstance")
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        raise SystemExit
+        sys.exit()
     App().run()
