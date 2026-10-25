@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reading</title>
+<style>
+  :root { --paper: #f7f2e8; --ink: #2b2620; --muted: #8a7f70; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); }
+  body { font-family: Georgia, "Iowan Old Style", "Times New Roman", serif; cursor: default; }
+  .page { display: none; box-sizing: border-box; max-width: 980px; margin: 0 auto; padding: 56px 40px 0; }
+  .page.active { display: block; }
+  .running { font-size: 15px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted);
+             display: flex; justify-content: space-between; border-bottom: 1px solid #e2d8c6;
+             padding-bottom: 14px; }
+  h1 { font-weight: normal; font-size: 34px; text-align: center; margin: 46px 0 34px;
+       letter-spacing: .06em; }
+  p { font-size: 27px; line-height: 1.72; margin: 0 0 18px; text-align: justify; hyphens: none; }
+  p.first::first-letter { float: left; font-size: 82px; line-height: .9; padding: 8px 10px 0 0; }
+  figure { margin: 30px 0 0; text-align: center; }
+  figure img { max-width: 78%; box-shadow: 0 6px 22px rgba(60, 40, 10, .18); transform: rotate(-.6deg); }
+  figcaption { font-size: 15px; color: var(--muted); margin-top: 14px; letter-spacing: .06em; }
+  ::selection { background: #f4d27a; color: var(--ink); }
+</style>
+</head>
+<body>
+
+<section class="page active" id="en">
+  <div class="running"><span>Pride and Prejudice</span><span>Jane Austen</span></div>
+  <h1>Chapter I</h1>
+  <p class="first">It is a truth universally acknowledged, that a single man in possession of a good
+  fortune, must be in want of a wife.</p>
+  <p>However little known the feelings or views of such a man may be on his first entering a
+  neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is
+  considered the rightful property of some one or other of their daughters.</p>
+  <p>“My dear Mr. Bennet,” said his lady to him one day, “have you heard that Netherfield Park is
+  let at last?” Mr. Bennet replied that he had not.</p>
+  <p>“Do you not want to know who has taken it?” cried his wife impatiently.</p>
+  <figure>
+    <img src="assets/quote.png" alt="">
+    <figcaption>— a page from Chapter V</figcaption>
+  </figure>
+</section>
+
+<section class="page" id="es">
+  <div class="running"><span>Don Quijote de la Mancha</span><span>Miguel de Cervantes</span></div>
+  <h1>Capítulo primero</h1>
+  <p class="first">En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo
+  que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor.</p>
+  <p>Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los
+  sábados, lentejas los viernes, algún palomino de añadidura los domingos, consumían las tres
+  partes de su hacienda.</p>
+  <p>Frisaba la edad de nuestro hidalgo con los cincuenta años; era de complexión recia, seco de
+  carnes, enjuto de rostro, gran madrugador y amigo de la caza.</p>
+</section>
+
+<script>
+  // Arrow keys flip between the two books (the demo recorder uses this)
+  const pages = [...document.querySelectorAll('.page')];
+  let current = 0;
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    pages[current].classList.remove('active');
+    current = (current + (e.key === 'ArrowRight' ? 1 : pages.length - 1)) % pages.length;
+    pages[current].classList.add('active');
+    getSelection().removeAllRanges();
+  });
+</script>
+</body>
+</html>
