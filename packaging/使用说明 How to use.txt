@@ -1,0 +1,68 @@
+Word Popper 使用说明
+====================
+
+读英文（或其他外语）时，遇到不认识的词：选中它，按一下 Ctrl+Shift，
+屏幕角落的小卡片会显示翻译和音标，并读出发音。查过的词会自动存进词库，之后可以复习。
+
+【第一次打开】
+1. 把整个压缩包解压到一个固定的位置（比如“文档”文件夹），不要直接在压缩包里运行。
+2. 双击 WordPopper.exe。
+3. 如果 Windows 弹出“Windows 已保护你的电脑”：点“更多信息”→“仍要运行”。
+   （这个软件还没有购买代码签名证书，所以 Windows 不认识它，不是病毒。）
+4. 屏幕右下角会出现一个深色小卡片“🔊 Word Popper”，就说明在运行了。
+
+【怎么查词】
+- 选中单词 / 短语 / 句子 → 按一下 Ctrl+Shift（两个键一起按下再松开）
+- 复制不了的文字（图片、扫描版 PDF、视频字幕）：按 Win+Shift+S 框住那个词，会自动识别
+- 左键点卡片：再听一遍
+- 拖动卡片：换位置
+- 右键卡片：复习单词、我的词库、最近的单词、设置、暂停、退出
+
+【复习】
+右键卡片 →“复习单词”：先看单词想意思，按空格看答案，按 1 = 不认识，按 2 = 认识。
+认识的词复习间隔会越来越长，忘掉的词会更早再出现。
+
+【设置】（右键卡片 →“设置…”）
+可以选：界面语言、我在学的语言、翻译成的语言（12 种语言）、发音口音、语速、字体大小、
+查词方式、开机自动启动。
+
+【常见问题】
+- 按 Ctrl+Shift 会切换输入法？Windows 默认用 Ctrl+Shift 切换键盘布局。可以在设置里把
+  “查词方式”改成“复制（Ctrl+C）”，或者在 Windows 设置 → 时间和语言 → 输入 →
+  高级键盘设置 → 输入语言热键 里关掉。
+- 杀毒软件报警？因为它需要读取你选中的文字（会替你按一下 Ctrl+C），个别杀毒软件会误报，
+  选择“允许”即可。
+- 需要联网：翻译和发音都要网络。
+- 你的设置和词库保存在 %APPDATA%\Word Popper 里，删掉软件文件夹不会丢。
+
+
+Word Popper — How to use
+========================
+
+When you hit a word you don't know: select it and tap Ctrl+Shift. A small card in the corner
+shows the translation and pronunciation and reads it aloud. Every word is saved for review.
+
+First run
+1. Unzip the whole folder somewhere permanent (e.g. Documents). Don't run it from inside the zip.
+2. Double-click WordPopper.exe.
+3. If Windows says "Windows protected your PC": click "More info" → "Run anyway".
+   (The app isn't code-signed yet, so Windows doesn't recognise it.)
+4. A small dark card "🔊 Word Popper" appears in the bottom-right corner: it's running.
+
+Looking words up
+- Select a word, phrase or sentence → tap Ctrl+Shift (press both, release)
+- Text you can't select (images, scanned PDFs, video): Win+Shift+S and snip the word
+- Left-click the card: hear it again · Drag: move it · Right-click: review, word list, settings, quit
+
+Review: right-click → Review. Space shows the answer, 1 = forgot, 2 = knew it.
+
+Settings (right-click → Settings…): interface language, the language you're learning, the
+language to translate into (12 languages), voice, speed, text size, trigger, start with Windows.
+
+Notes
+- Ctrl+Shift switches keyboard layouts? Change "Look up a word by" to "Copying (Ctrl+C)" in
+  Settings, or turn off the Windows input-language hot key.
+- Antivirus warning? The app presses Ctrl+C for you to read the selection, which some antivirus
+  tools flag. Allow it.
+- Needs an internet connection for translation and voices.
+- Your settings and words live in %APPDATA%\Word Popper.

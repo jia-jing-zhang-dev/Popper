@@ -28,8 +28,12 @@ from settings_window import SettingsWindow
 from speech import Speaker
 from vocab import ReviewWindow, Vocab, VocabWindow
 
-SCRIPT_PATH = os.path.abspath(__file__)
-DATA_DIR = os.environ.get("WORD_POPPER_HOME") or os.path.dirname(SCRIPT_PATH)
+FROZEN = getattr(sys, "frozen", False)  # running as the packaged WordPopper.exe
+SCRIPT_PATH = sys.executable if FROZEN else os.path.abspath(__file__)
+# The packaged app keeps settings and words in %APPDATA%, so they survive moving or updating it
+DATA_DIR = (os.environ.get("WORD_POPPER_HOME")
+            or (os.path.join(os.environ["APPDATA"], "Word Popper") if FROZEN else os.path.dirname(SCRIPT_PATH)))
+os.makedirs(DATA_DIR, exist_ok=True)
 SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
 VOCAB_PATH = os.path.join(DATA_DIR, "vocab.db")
 EVENT_LOG = os.environ.get("WORD_POPPER_EVENTS")  # optional playback log (used to sync the demo video)
@@ -162,6 +166,10 @@ class App:
         root.attributes("-topmost", True)
         root.attributes("-alpha", 0.96)
         root.configure(bg=BG)
+        icon = os.path.join(getattr(sys, "_MEIPASS", os.path.join(os.path.dirname(SCRIPT_PATH), "packaging")),
+                            "icon.ico")
+        if os.path.exists(icon):
+            root.iconbitmap(default=icon)  # also used by the review, word-list and settings windows
         self.display_scale = root.winfo_fpixels("1i") / 96
 
         self.card_fonts = {"word": tkfont.Font(family="Segoe UI Semibold"),
