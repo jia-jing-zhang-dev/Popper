@@ -22,7 +22,7 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 W, H, FPS = 1920, 1080, 30
 CROP = "crop=2560:1440:0:0"   # drop the bottom rows where the taskbar can flash in
 SEGMENTS = ["1_english", "2_spanish", "3_review"]
-REPO = "github.com/zjiajing11-maker/word-popper"
+REPO = "github.com/jia-jing-zhang-dev/Real-Time-Translate-MCP-"
 
 PAPER = (247, 242, 232)
 INK = (43, 38, 32)
