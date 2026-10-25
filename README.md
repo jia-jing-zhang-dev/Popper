@@ -41,8 +41,8 @@ Requirements: **Windows 10/11** and **Python 3.10+** ([python.org](https://www.p
 Tested with Python 3.12.
 
 ```bat
-git clone https://github.com/zjiajing11-maker/word-popper.git
-cd word-popper
+git clone https://github.com/jia-jing-zhang-dev/Real-Time-Translate-MCP-.git
+cd Real-Time-Translate-MCP-
 setup.bat
 ```
 
