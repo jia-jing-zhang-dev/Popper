@@ -188,7 +188,7 @@ def main():
         ("No dictionary tab. No flash-card deck to build.", font("georgiai.ttf", 50), 90, INK),
         ("Just keep reading.", font("georgia.ttf", 84), 170, INK),
         (REPO, font("seguisb.ttf", 40), 64, INK),
-        ("Free & open source  ·  Windows 10/11  ·  12 languages", font("segoeui.ttf", 30), 50, MUTED),
+        ("Windows 10/11  ·  12 languages", font("segoeui.ttf", 30), 50, MUTED),
     ], 5.5)
     parts.append(end)
 
