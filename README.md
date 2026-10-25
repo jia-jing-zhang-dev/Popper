@@ -12,7 +12,7 @@ words that come up in the book you're actually reading, at the moment you need t
 
 ![Word Popper demo: looking up words while reading Pride and Prejudice](docs/demo.gif)
 
-▶ **[Watch the full demo with sound](docs/demo.mp4)** (1:49): English and Spanish books,
+▶ **[Watch the full demo with narration](docs/demo.mp4)** (2:04): English and Spanish books,
 screenshot OCR, settings, and spaced-repetition review.
 
 ## Features
@@ -150,7 +150,8 @@ The demo is recorded for real, with no mock-ups. [`demo/record.py`](demo/record.
 [`demo/book.html`](demo/book.html) full-screen (public-domain excerpts from *Pride and Prejudice*
 and *Don Quijote*), runs Word Popper with a throw-away data folder, and drives the mouse and
 keyboard while ffmpeg records the screen. [`demo/edit.py`](demo/edit.py) adds the captions and
-key badges, and rebuilds the audio from Word Popper's own playback log. To re-record:
+key badges and a voice-over, and rebuilds the word audio from Word Popper's own playback log. Where a
+narration line needs more room, the picture holds still so the narrator never talks over a word. To re-record:
 
 ```bat
 .venv\Scripts\python -m pip install -r demo\requirements.txt
