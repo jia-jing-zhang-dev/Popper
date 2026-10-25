@@ -50,6 +50,20 @@ setup.bat
 The card appears in the bottom-right corner of your screen. After that, start it with `run.bat`,
 or turn on **Start with Windows** in Settings.
 
+### Standalone app (no Python needed)
+
+To give Word Popper to someone who doesn't have Python, build a self-contained folder:
+
+```bat
+.venv\Scripts\python -m pip install pyinstaller
+.venv\Scripts\python packaging\build.py
+```
+
+This creates `dist\WordPopper-windows.zip` (about 21 MB) with `WordPopper.exe` and a bilingual
+how-to. The packaged app keeps its settings and word list in `%APPDATA%\Word Popper`. It isn't
+code-signed, so the first time it runs Windows SmartScreen asks for confirmation
+(**More info → Run anyway**).
+
 ## How to use it
 
 | You want to… | Do this |

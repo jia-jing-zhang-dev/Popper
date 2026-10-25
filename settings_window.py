@@ -24,13 +24,17 @@ def set_autostart(enabled, script):
         if os.path.exists(STARTUP_LINK):
             os.remove(STARTUP_LINK)
         return
-    pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-    if not os.path.exists(pythonw):
-        pythonw = sys.executable
+    if getattr(sys, "frozen", False):  # packaged exe: the shortcut points straight at it
+        target, args = sys.executable, ""
+    else:
+        target = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        if not os.path.exists(target):
+            target = sys.executable
+        args = f'"{script}"'
     ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:WP_LINK);"
-          "$s.TargetPath=$env:WP_TARGET; $s.Arguments='\"' + $env:WP_SCRIPT + '\"';"
+          "$s.TargetPath=$env:WP_TARGET; $s.Arguments=$env:WP_ARGS;"
           "$s.WorkingDirectory=$env:WP_DIR; $s.Description='Word Popper'; $s.Save()")
-    env = dict(os.environ, WP_LINK=STARTUP_LINK, WP_TARGET=pythonw, WP_SCRIPT=script,
+    env = dict(os.environ, WP_LINK=STARTUP_LINK, WP_TARGET=target, WP_ARGS=args,
                WP_DIR=os.path.dirname(script))
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=env,
                    creationflags=subprocess.CREATE_NO_WINDOW, check=False)

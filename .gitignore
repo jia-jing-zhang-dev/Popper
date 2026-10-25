@@ -5,3 +5,6 @@ settings.json
 vocab.db
 demo/_frames/
 demo/_work/
+build/
+dist/
+packaging/icon.ico
