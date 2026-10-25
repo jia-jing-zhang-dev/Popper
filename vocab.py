@@ -1,4 +1,4 @@
-"""词库（SQLite）+ 复习窗口 + 词库列表窗口。"""
+"""Word list (SQLite), flash-card review window and word-list window."""
 
 import csv
 import json
@@ -8,9 +8,11 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-# 复习间隔（天）：答“认识”升一级，答“不认识”回到 0 级
+from i18n import t
+
+# Review intervals in days: "knew it" moves a word up one step, "forgot" sends it back to 0
 INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60]
-FORGOT_DELAY = 10 * 60  # 不认识的词 10 分钟后再出现
+FORGOT_DELAY = 10 * 60  # a forgotten word comes back after 10 minutes
 
 BG = "#1f2430"
 PANEL = "#2a3040"
@@ -38,28 +40,33 @@ class Vocab:
                 level     INTEGER DEFAULT 0,
                 due       REAL
             )""")
+        columns = {row["name"] for row in self.db.execute("PRAGMA table_info(words)")}
+        if "lang" not in columns:  # added with multi-language support
+            self.db.execute("ALTER TABLE words ADD COLUMN lang TEXT DEFAULT 'en'")
         self.db.commit()
 
     @staticmethod
     def to_item(row):
         return {"word": row["word"], "speak": row["speak"], "trans": row["trans"],
                 "senses": json.loads(row["senses"] or "[]"),
-                "ipa": json.loads(row["ipa"] or "{}"),
+                "pron": json.loads(row["ipa"] or "{}"),
+                "speak_lang": row["lang"] or "en",
                 "lookups": row["lookups"], "added": row["added"]}
 
     def add(self, item):
-        """查一次就记一次；再次查同一个词说明还没记住，复习进度归零。"""
+        """Record a lookup. Looking a word up again means it isn't learned yet, so its review resets."""
         now = time.time()
         args = (item["speak"], item["trans"], json.dumps(item["senses"], ensure_ascii=False),
-                json.dumps(item["ipa"], ensure_ascii=False))
+                json.dumps(item["pron"], ensure_ascii=False), item["speak_lang"])
         cur = self.db.execute("""
-            UPDATE words SET speak=?, trans=?, senses=?, ipa=?, lookups=lookups+1,
+            UPDATE words SET speak=?, trans=?, senses=?, ipa=?, lang=?, lookups=lookups+1,
                              last_seen=?, level=0, due=? WHERE word=?""",
                               (*args, now, now, item["word"]))
         if cur.rowcount == 0:
             self.db.execute("""
-                INSERT INTO words (word, speak, trans, senses, ipa, lookups, added, last_seen, level, due)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, 0, ?)""", (item["word"], *args, now, now, now))
+                INSERT INTO words (word, speak, trans, senses, ipa, lang, lookups, added, last_seen,
+                                   level, due)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 0, ?)""", (item["word"], *args, now, now, now))
         self.db.commit()
 
     def recent(self, n=12):
@@ -105,18 +112,13 @@ class Vocab:
         self.db.execute("DELETE FROM words WHERE word=?", (word,))
         self.db.commit()
 
-    def export_csv(self, path):
+    def export_csv(self, path, pron_for):
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
-            w.writerow(["单词", "音标", "翻译", "释义", "查询次数"])
+            w.writerow(t("csv_headers"))
             for item in self.search():
-                ipa = item["ipa"].get("美音") or next(iter(item["ipa"].values()), "")
-                w.writerow([item["word"], ipa, item["trans"], "\n".join(item["senses"]),
+                w.writerow([item["word"], pron_for(item), item["trans"], "\n".join(item["senses"]),
                             item["lookups"]])
-
-
-def ipa_for(item, accent):
-    return item["ipa"].get(accent) or next(iter(item["ipa"].values()), "")
 
 
 def flat_button(parent, text, command, bg=PANEL, **kw):
@@ -126,31 +128,31 @@ def flat_button(parent, text, command, bg=PANEL, **kw):
 
 
 class ReviewWindow:
-    """闪卡复习：先看单词（自动读），想一想，再看释义，选认识/不认识。"""
+    """Flash cards: see the word (and hear it), recall the meaning, then reveal and grade."""
 
     def __init__(self, app, items, note=""):
         self.app, self.queue, self.retried = app, list(items), set()
         self.done_count = 0
         top = self.top = tk.Toplevel(app.root)
-        top.title("复习单词")
+        top.title(t("review_title"))
         top.configure(bg=BG)
         top.attributes("-topmost", True)
-        scale = app.root.winfo_fpixels("1i") / 96
+        scale = app.scale
         top.geometry(f"{int(480 * scale)}x{int(400 * scale)}")
         wrap = int(420 * scale)
 
         self.progress = tk.Label(top, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9))
         self.progress.pack(anchor="w", padx=20, pady=(14, 0))
-        self.note = tk.Label(top, text=note, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9))
         if note:
-            self.note.pack(anchor="w", padx=20)
+            tk.Label(top, text=note, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9)).pack(
+                anchor="w", padx=20)
 
         self.word = tk.Label(top, bg=BG, fg=FG, font=("Segoe UI Semibold", 26),
                              wraplength=wrap, cursor="hand2")
         self.word.pack(pady=(24, 0))
         self.word.bind("<Button-1>", lambda e: self.speak())
-        self.ipa = tk.Label(top, bg=BG, fg=ACCENT, font=("Segoe UI", 12))
-        self.ipa.pack()
+        self.pron = tk.Label(top, bg=BG, fg=ACCENT, font=("Segoe UI", 12))
+        self.pron.pack()
         self.answer = tk.Frame(top, bg=BG)
         self.trans = tk.Label(self.answer, bg=BG, fg=FG, font=("Microsoft YaHei UI", 14),
                               wraplength=wrap)
@@ -161,9 +163,9 @@ class ReviewWindow:
 
         self.buttons = tk.Frame(top, bg=BG)
         self.buttons.pack(side="bottom", pady=18)
-        self.reveal_btn = flat_button(self.buttons, "显示释义（空格）", self.reveal)
-        self.bad_btn = flat_button(self.buttons, "不认识（1）", lambda: self.grade(False), bg=BAD)
-        self.good_btn = flat_button(self.buttons, "认识（2）", lambda: self.grade(True), bg=GOOD)
+        self.reveal_btn = flat_button(self.buttons, t("review_show"), self.reveal)
+        self.bad_btn = flat_button(self.buttons, t("review_forgot"), lambda: self.grade(False), bg=BAD)
+        self.good_btn = flat_button(self.buttons, t("review_knew"), lambda: self.grade(True), bg=GOOD)
         self.speak_btn = flat_button(self.buttons, "🔊", self.speak)
 
         top.bind("<space>", lambda e: self.reveal())
@@ -176,8 +178,8 @@ class ReviewWindow:
         self.next_card()
 
     def speak(self):
-        if self.item and self.item.get("speak"):
-            self.app.speaker.say(self.item["speak"], self.app.voice())
+        if self.item:
+            self.app.speak_item(self.item)
 
     def next_card(self):
         for w in self.buttons.winfo_children():
@@ -186,15 +188,15 @@ class ReviewWindow:
         self.revealed = False
         if not self.queue:
             self.item = None
-            self.word.configure(text="复习完成 ✓")
-            self.ipa.configure(text=f"本次复习了 {self.done_count} 个词")
+            self.word.configure(text=t("review_done"))
+            self.pron.configure(text=t("review_done_count", n=self.done_count))
             self.progress.configure(text="")
-            flat_button(self.buttons, "关闭", self.top.destroy).pack()
+            flat_button(self.buttons, t("review_close"), self.top.destroy).pack()
             return
         self.item = self.queue.pop(0)
-        self.progress.configure(text=f"还剩 {len(self.queue) + 1} 个")
+        self.progress.configure(text=t("review_left", n=len(self.queue) + 1))
         self.word.configure(text=self.item["word"])
-        self.ipa.configure(text="")
+        self.pron.configure(text="")
         self.reveal_btn.pack(side="left", padx=6)
         self.speak_btn.pack(side="left", padx=6)
         self.speak()
@@ -203,7 +205,7 @@ class ReviewWindow:
         if not self.item or self.revealed:
             return
         self.revealed = True
-        self.ipa.configure(text=ipa_for(self.item, self.app.settings["accent"]))
+        self.pron.configure(text=self.app.pron_text(self.item))
         self.trans.configure(text=self.item["trans"])
         self.senses.configure(text="\n".join(self.item["senses"]))
         self.answer.pack()
@@ -218,7 +220,7 @@ class ReviewWindow:
             return
         self.app.vocab.grade(self.item["word"], known)
         word = self.item["word"]
-        if not known and word not in self.retried:  # 不认识的词本轮最后再来一次
+        if not known and word not in self.retried:  # forgotten words come back once more this round
             self.retried.add(word)
             self.queue.append(self.item)
         else:
@@ -227,34 +229,34 @@ class ReviewWindow:
 
 
 class VocabWindow:
-    """词库列表：搜索、朗读、删除、导出 CSV。"""
+    """Word list: search, listen, delete, export to CSV."""
 
     def __init__(self, app):
         self.app = app
         top = self.top = tk.Toplevel(app.root)
-        top.title("我的词库")
+        top.title(t("vocab_title"))
         top.attributes("-topmost", True)
-        scale = app.root.winfo_fpixels("1i") / 96
+        scale = app.scale
         top.geometry(f"{int(640 * scale)}x{int(480 * scale)}")
 
         bar = ttk.Frame(top, padding=8)
         bar.pack(fill="x")
-        ttk.Label(bar, text="搜索：").pack(side="left")
+        ttk.Label(bar, text=t("vocab_search")).pack(side="left")
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *a: self.refresh())
         entry = ttk.Entry(bar, textvariable=self.search_var, width=24)
         entry.pack(side="left")
-        ttk.Button(bar, text="导出 CSV", command=self.export).pack(side="right")
-        ttk.Button(bar, text="删除", command=self.delete).pack(side="right", padx=4)
-        ttk.Button(bar, text="朗读", command=self.speak).pack(side="right")
+        ttk.Button(bar, text=t("vocab_export"), command=self.export).pack(side="right")
+        ttk.Button(bar, text=t("vocab_delete"), command=self.delete).pack(side="right", padx=4)
+        ttk.Button(bar, text=t("vocab_speak"), command=self.speak).pack(side="right")
 
         style = ttk.Style(top)
         style.configure("Vocab.Treeview", rowheight=int(26 * scale), font=("Microsoft YaHei UI", 10))
         cols = ("word", "trans", "lookups", "added")
         self.tree = ttk.Treeview(top, columns=cols, show="headings", style="Vocab.Treeview")
-        for col, title, width in [("word", "单词", 160), ("trans", "翻译", 280),
-                                  ("lookups", "查询次数", 70), ("added", "添加日期", 100)]:
-            self.tree.heading(col, text=title)
+        for col, key, width in [("word", "col_word", 160), ("trans", "col_trans", 280),
+                                ("lookups", "col_lookups", 70), ("added", "col_added", 100)]:
+            self.tree.heading(col, text=t(key))
             self.tree.column(col, width=int(width * scale), anchor="w")
         scroll = ttk.Scrollbar(top, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
@@ -278,31 +280,30 @@ class VocabWindow:
                 item["word"], item["trans"], item["lookups"],
                 time.strftime("%Y-%m-%d", time.localtime(item["added"]))))
             self.items[iid] = item
-        self.status.configure(text=f"共 {self.app.vocab.count()} 个词，"
-                                   f"{self.app.vocab.due_count()} 个待复习　·　双击朗读")
+        self.status.configure(text=t("vocab_status", n=self.app.vocab.count(),
+                                     due=self.app.vocab.due_count()))
 
     def selected(self):
         return [self.items[i] for i in self.tree.selection() if i in self.items]
 
     def speak(self):
         for item in self.selected()[:1]:
-            if item.get("speak"):
-                self.app.speaker.say(item["speak"], self.app.voice())
+            self.app.speak_item(item)
 
     def delete(self):
         items = self.selected()
         if not items:
             return
-        names = "、".join(i["word"] for i in items[:5]) + ("…" if len(items) > 5 else "")
-        if messagebox.askyesno("删除", f"从词库删除 {names}？", parent=self.top):
+        names = ", ".join(i["word"] for i in items[:5]) + ("…" if len(items) > 5 else "")
+        if messagebox.askyesno(t("vocab_delete"), t("vocab_delete_confirm", names=names), parent=self.top):
             for item in items:
                 self.app.vocab.delete(item["word"])
             self.refresh()
 
     def export(self):
         path = filedialog.asksaveasfilename(parent=self.top, defaultextension=".csv",
-                                            initialfile="我的词库.csv",
+                                            initialfile="word-popper.csv",
                                             filetypes=[("CSV", "*.csv")])
         if path:
-            self.app.vocab.export_csv(path)
-            self.status.configure(text=f"已导出到 {path}")
+            self.app.vocab.export_csv(path, self.app.pron_text)
+            self.status.configure(text=t("vocab_exported", path=path))
