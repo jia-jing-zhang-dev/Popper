@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import messagebox
 
 from PIL import Image, ImageGrab
@@ -39,6 +40,8 @@ VOCAB_MAX_WORDS = 4        # sentences are translated but not saved to the word 
 MAX_IMAGE_PIXELS = 1_500_000  # skip OCR for big images (full-screen captures)
 HOTKEY_MAX_SECONDS = 1.0   # holding Ctrl+Shift longer than this isn't a "tap"
 EXPANDED_SECONDS = 8
+TEXT_SIZES = {"small": 0.9, "normal": 1.0, "large": 1.25, "huge": 1.6}
+CARD_FONT_SIZES = {"word": 12, "pron": 10, "trans": 11, "senses": 9}
 
 BG = "#1f2430"
 BG_HOVER = "#2a3040"
@@ -85,7 +88,8 @@ def load_settings():
     native = system_language()
     settings = {"ui_lang": "zh" if native.startswith("zh") else "en",
                 "learn": "es" if native == "en" else "en",
-                "native": native, "voices": {}, "speed": "-10%", "trigger": "ctrl_shift",
+                "native": native, "voices": {}, "speed": "-10%", "text_size": "normal",
+                "trigger": "ctrl_shift",
                 "screenshots": True, "listening": True, "x": None, "bottom": None}
     try:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
@@ -158,20 +162,24 @@ class App:
         root.attributes("-topmost", True)
         root.attributes("-alpha", 0.96)
         root.configure(bg=BG)
-        self.scale = root.winfo_fpixels("1i") / 96
+        self.display_scale = root.winfo_fpixels("1i") / 96
 
-        wrap = int(320 * self.scale)  # wrap width follows the display scaling
+        self.card_fonts = {"word": tkfont.Font(family="Segoe UI Semibold"),
+                           "pron": tkfont.Font(family="Segoe UI"),
+                           "trans": tkfont.Font(family="Microsoft YaHei UI"),
+                           "senses": tkfont.Font(family="Microsoft YaHei UI")}
         self.frame = tk.Frame(root, bg=BG, padx=14, pady=8)
         self.frame.pack(fill="both", expand=True)
-        self.word_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=("Segoe UI Semibold", 12),
-                                 anchor="w", justify="left", wraplength=wrap)
-        self.pron_lbl = tk.Label(self.frame, bg=BG, fg=ACCENT, font=("Segoe UI", 10), anchor="w")
-        self.trans_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=("Microsoft YaHei UI", 11),
-                                  anchor="w", justify="left", wraplength=wrap)
-        self.senses_lbl = tk.Label(self.frame, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9),
-                                   anchor="w", justify="left", wraplength=wrap)
+        self.word_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=self.card_fonts["word"],
+                                 anchor="w", justify="left")
+        self.pron_lbl = tk.Label(self.frame, bg=BG, fg=ACCENT, font=self.card_fonts["pron"], anchor="w")
+        self.trans_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=self.card_fonts["trans"],
+                                  anchor="w", justify="left")
+        self.senses_lbl = tk.Label(self.frame, bg=BG, fg=FG_DIM, font=self.card_fonts["senses"],
+                                   anchor="w", justify="left")
         self.word_lbl.pack(fill="x")
         self.detail_widgets = [self.pron_lbl, self.trans_lbl, self.senses_lbl]
+        self.apply_text_size()
 
         for w in [root, self.frame, self.word_lbl, *self.detail_widgets]:
             w.bind("<ButtonPress-1>", self.on_press)
@@ -188,6 +196,25 @@ class App:
         root.after(100, self.poll_ui_queue)
 
     # ---------- layout
+
+    @property
+    def zoom(self):
+        return TEXT_SIZES.get(self.settings["text_size"], 1.0)
+
+    @property
+    def scale(self):
+        """Pixel scale for windows: display scaling times the user's text size."""
+        return self.display_scale * self.zoom
+
+    def font(self, family, size):
+        return (family, round(size * self.zoom))
+
+    def apply_text_size(self):
+        for name, size in CARD_FONT_SIZES.items():
+            self.card_fonts[name].configure(size=round(size * self.zoom))
+        wrap = int(320 * self.scale)
+        for w in [self.word_lbl, self.trans_lbl, self.senses_lbl]:
+            w.configure(wraplength=wrap)
 
     def place_window(self):
         """Keep the card's bottom-left corner fixed so it grows upwards."""
@@ -314,6 +341,7 @@ class App:
         self.settings = new
         save_settings(new)
         i18n.set_language(new["ui_lang"])
+        self.apply_text_size()
         self.update_status()
         self.place_window()
         if learn_changed and new["screenshots"]:

@@ -56,6 +56,11 @@ STRINGS = {
         "speed_relaxed": "Relaxed",
         "speed_normal": "Normal",
         "speed_fast": "Fast",
+        "set_text_size": "Text size",
+        "size_small": "Small",
+        "size_normal": "Normal",
+        "size_large": "Large",
+        "size_huge": "Extra large",
         "ocr_missing": "Windows has no OCR pack for {lang}; screenshots will be read as English. "
                        "Add it in Settings → Time & language → Language & region.",
     },
@@ -114,6 +119,11 @@ STRINGS = {
         "speed_relaxed": "稍慢",
         "speed_normal": "正常",
         "speed_fast": "快",
+        "set_text_size": "字体大小",
+        "size_small": "小",
+        "size_normal": "标准",
+        "size_large": "大",
+        "size_huge": "特大",
         "ocr_missing": "Windows 没有安装 {lang} 的 OCR 语言包，截图会按英文识别。"
                        "可在 设置 → 时间和语言 → 语言和区域 里添加。",
     },

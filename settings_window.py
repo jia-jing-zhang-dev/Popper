@@ -12,6 +12,7 @@ from languages import LANGUAGES, label, voices
 STARTUP_LINK = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs\Startup",
                             "Word Popper.lnk")
 SPEEDS = [("speed_slow", "-25%"), ("speed_relaxed", "-10%"), ("speed_normal", "+0%"), ("speed_fast", "+15%")]
+SIZES = [("size_small", "small"), ("size_normal", "normal"), ("size_large", "large"), ("size_huge", "huge")]
 
 
 def autostart_enabled():
@@ -56,6 +57,8 @@ class SettingsWindow:
         self.voice_var = tk.StringVar()
         self.speed_var = tk.StringVar(value=next((t(k) for k, v in SPEEDS if v == s["speed"]),
                                                  t("speed_relaxed")))
+        self.size_var = tk.StringVar(value=next((t(k) for k, v in SIZES if v == s["text_size"]),
+                                                t("size_normal")))
         self.trigger_var = tk.StringVar(value=s["trigger"])
         self.shots_var = tk.BooleanVar(value=s["screenshots"])
         self.autostart_var = tk.BooleanVar(value=autostart_enabled())
@@ -76,21 +79,23 @@ class SettingsWindow:
         row(3, "set_voice", self.voice_box)
         row(4, "set_speed", ttk.Combobox(body, textvariable=self.speed_var, state="readonly",
                                          values=[t(k) for k, _ in SPEEDS], width=30))
+        row(5, "set_text_size", ttk.Combobox(body, textvariable=self.size_var, state="readonly",
+                                             values=[t(k) for k, _ in SIZES], width=30))
 
-        ttk.Label(body, text=t("set_trigger")).grid(row=5, column=0, sticky="nw", pady=(10, 4))
+        ttk.Label(body, text=t("set_trigger")).grid(row=6, column=0, sticky="nw", pady=(10, 4))
         triggers = ttk.Frame(body)
-        triggers.grid(row=5, column=1, sticky="w", pady=(10, 4))
+        triggers.grid(row=6, column=1, sticky="w", pady=(10, 4))
         ttk.Radiobutton(triggers, text=t("trigger_ctrl_shift"), value="ctrl_shift",
                         variable=self.trigger_var).pack(anchor="w")
         ttk.Radiobutton(triggers, text=t("trigger_copy"), value="copy",
                         variable=self.trigger_var).pack(anchor="w")
         ttk.Checkbutton(body, text=t("set_screenshots"), variable=self.shots_var).grid(
-            row=6, column=1, sticky="w", pady=(8, 2))
+            row=7, column=1, sticky="w", pady=(8, 2))
         ttk.Checkbutton(body, text=t("set_autostart"), variable=self.autostart_var).grid(
-            row=7, column=1, sticky="w", pady=2)
+            row=8, column=1, sticky="w", pady=2)
 
         buttons = ttk.Frame(body)
-        buttons.grid(row=8, column=0, columnspan=2, sticky="e", pady=(16, 0))
+        buttons.grid(row=9, column=0, columnspan=2, sticky="e", pady=(16, 0))
         ttk.Button(buttons, text=t("set_cancel"), command=top.destroy).pack(side="right")
         ttk.Button(buttons, text=t("set_save"), command=self.save).pack(side="right", padx=6)
 
@@ -116,6 +121,7 @@ class SettingsWindow:
         s["native"] = self.code_of(self.native_var)
         s["voices"] = dict(s["voices"], **{s["learn"]: self.voice_var.get()})
         s["speed"] = next(v for k, v in SPEEDS if t(k) == self.speed_var.get())
+        s["text_size"] = next(v for k, v in SIZES if t(k) == self.size_var.get())
         s["trigger"] = self.trigger_var.get()
         s["screenshots"] = self.shots_var.get()
         if self.autostart_var.get() != autostart_enabled():
