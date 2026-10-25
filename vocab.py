@@ -121,10 +121,10 @@ class Vocab:
                             item["lookups"]])
 
 
-def flat_button(parent, text, command, bg=PANEL, **kw):
+def flat_button(app, parent, text, command, bg=PANEL):
     return tk.Button(parent, text=text, command=command, bg=bg, fg=FG, activebackground=bg,
                      activeforeground=FG, relief="flat", bd=0, padx=16, pady=8,
-                     font=("Microsoft YaHei UI", 11), cursor="hand2", **kw)
+                     font=app.font("Microsoft YaHei UI", 11), cursor="hand2")
 
 
 class ReviewWindow:
@@ -141,32 +141,34 @@ class ReviewWindow:
         top.geometry(f"{int(480 * scale)}x{int(400 * scale)}")
         wrap = int(420 * scale)
 
-        self.progress = tk.Label(top, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9))
+        self.progress = tk.Label(top, bg=BG, fg=FG_DIM, font=app.font("Microsoft YaHei UI", 9))
         self.progress.pack(anchor="w", padx=20, pady=(14, 0))
         if note:
-            tk.Label(top, text=note, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 9)).pack(
+            tk.Label(top, text=note, bg=BG, fg=FG_DIM, font=app.font("Microsoft YaHei UI", 9)).pack(
                 anchor="w", padx=20)
 
-        self.word = tk.Label(top, bg=BG, fg=FG, font=("Segoe UI Semibold", 26),
+        self.word = tk.Label(top, bg=BG, fg=FG, font=app.font("Segoe UI Semibold", 26),
                              wraplength=wrap, cursor="hand2")
         self.word.pack(pady=(24, 0))
         self.word.bind("<Button-1>", lambda e: self.speak())
-        self.pron = tk.Label(top, bg=BG, fg=ACCENT, font=("Segoe UI", 12))
+        self.pron = tk.Label(top, bg=BG, fg=ACCENT, font=app.font("Segoe UI", 12))
         self.pron.pack()
         self.answer = tk.Frame(top, bg=BG)
-        self.trans = tk.Label(self.answer, bg=BG, fg=FG, font=("Microsoft YaHei UI", 14),
+        self.trans = tk.Label(self.answer, bg=BG, fg=FG, font=app.font("Microsoft YaHei UI", 14),
                               wraplength=wrap)
-        self.senses = tk.Label(self.answer, bg=BG, fg=FG_DIM, font=("Microsoft YaHei UI", 10),
+        self.senses = tk.Label(self.answer, bg=BG, fg=FG_DIM, font=app.font("Microsoft YaHei UI", 10),
                                wraplength=wrap, justify="left")
         self.trans.pack(pady=(10, 4))
         self.senses.pack()
 
         self.buttons = tk.Frame(top, bg=BG)
         self.buttons.pack(side="bottom", pady=18)
-        self.reveal_btn = flat_button(self.buttons, t("review_show"), self.reveal)
-        self.bad_btn = flat_button(self.buttons, t("review_forgot"), lambda: self.grade(False), bg=BAD)
-        self.good_btn = flat_button(self.buttons, t("review_knew"), lambda: self.grade(True), bg=GOOD)
-        self.speak_btn = flat_button(self.buttons, "🔊", self.speak)
+        self.reveal_btn = flat_button(app, self.buttons, t("review_show"), self.reveal)
+        self.bad_btn = flat_button(app, self.buttons, t("review_forgot"), lambda: self.grade(False),
+                                   bg=BAD)
+        self.good_btn = flat_button(app, self.buttons, t("review_knew"), lambda: self.grade(True),
+                                    bg=GOOD)
+        self.speak_btn = flat_button(app, self.buttons, "🔊", self.speak)
 
         top.bind("<space>", lambda e: self.reveal())
         top.bind("1", lambda e: self.grade(False) if self.revealed else None)
@@ -191,7 +193,7 @@ class ReviewWindow:
             self.word.configure(text=t("review_done"))
             self.pron.configure(text=t("review_done_count", n=self.done_count))
             self.progress.configure(text="")
-            flat_button(self.buttons, t("review_close"), self.top.destroy).pack()
+            flat_button(self.app, self.buttons, t("review_close"), self.top.destroy).pack()
             return
         self.item = self.queue.pop(0)
         self.progress.configure(text=t("review_left", n=len(self.queue) + 1))
@@ -251,7 +253,8 @@ class VocabWindow:
         ttk.Button(bar, text=t("vocab_speak"), command=self.speak).pack(side="right")
 
         style = ttk.Style(top)
-        style.configure("Vocab.Treeview", rowheight=int(26 * scale), font=("Microsoft YaHei UI", 10))
+        style.configure("Vocab.Treeview", rowheight=int(26 * scale),
+                        font=app.font("Microsoft YaHei UI", 10))
         cols = ("word", "trans", "lookups", "added")
         self.tree = ttk.Treeview(top, columns=cols, show="headings", style="Vocab.Treeview")
         for col, key, width in [("word", "col_word", 160), ("trans", "col_trans", 280),
