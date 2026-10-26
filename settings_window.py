@@ -65,7 +65,7 @@ class SettingsWindow:
                                                 t("size_normal")))
         self.trigger_var = tk.StringVar(value=s["trigger"])
         self.shots_var = tk.BooleanVar(value=s["screenshots"])
-        self.library_var = tk.BooleanVar(value=s["library"])
+        self.feature_vars = {f.id: tk.BooleanVar(value=f.on) for f in app.features}
         self.autostart_var = tk.BooleanVar(value=autostart_enabled())
 
         def row(r, key, widget):
@@ -98,8 +98,13 @@ class SettingsWindow:
             row=7, column=1, sticky="w", pady=(8, 2))
         ttk.Checkbutton(body, text=t("set_autostart"), variable=self.autostart_var).grid(
             row=8, column=1, sticky="w", pady=2)
-        ttk.Checkbutton(body, text=t("set_library"), variable=self.library_var).grid(
-            row=9, column=1, sticky="w", pady=2)
+
+        ttk.Label(body, text=t("set_features")).grid(row=9, column=0, sticky="nw", pady=(12, 4))
+        features = ttk.Frame(body)
+        features.grid(row=9, column=1, sticky="w", pady=(12, 4))
+        for feature in app.features:
+            ttk.Checkbutton(features, text=t(feature.name_key),
+                            variable=self.feature_vars[feature.id]).pack(anchor="w", pady=1)
 
         buttons = ttk.Frame(body)
         buttons.grid(row=10, column=0, columnspan=2, sticky="e", pady=(16, 0))
@@ -131,7 +136,7 @@ class SettingsWindow:
         s["text_size"] = next(v for k, v in SIZES if t(k) == self.size_var.get())
         s["trigger"] = self.trigger_var.get()
         s["screenshots"] = self.shots_var.get()
-        s["library"] = self.library_var.get()
+        s["features"] = {fid: var.get() for fid, var in self.feature_vars.items()}
         if self.autostart_var.get() != autostart_enabled():
             set_autostart(self.autostart_var.get(), self.app.script_path)
         self.top.destroy()

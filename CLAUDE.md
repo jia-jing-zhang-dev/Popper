@@ -24,18 +24,38 @@ run.bat                                     :: start (pythonw, no console)
 - Settings changed by editing `settings.json` only take effect if the app is stopped first,
   otherwise it writes its in-memory settings back over the file.
 
+## Architecture: the card + features
+
+The card and word lookup (Ctrl+Shift, screenshots, translation, speech) are the core in
+`word_popper.py` and are always on. Everything else is a **feature** in `features/`: a `Feature`
+subclass (`features/base.py`) that can add right-click menu items (`menu_items`), journal sections
+(`journal_sections`), timers (`every`) and windows (`show`/`window`). `features/__init__.py`
+lists them in menu/Settings/journal order. Settings → Features turns each on or off
+(`settings["features"][id]`, default `Feature.default_on`). Features reach each other through
+`app.feature("id")`. Shared data stores are on the app: `app.vocab`, `app.library`, `app.todos`,
+`app.journal`.
+
+### Adding a feature
+
+1. Copy `features/_template.py` and pick a permanent `id`.
+2. Put its UI strings in both languages in `i18n.py`, including its `name_key`.
+3. Give its data its own table in `vocab.db`, created and upgraded in its store's constructor.
+4. Add the class to `FEATURES`. It then appears in the menu, in Settings and in the journal.
+5. Test it in-process in both languages, then commit and push.
+
 ## Layout
 
 | File | What's in it |
 | --- | --- |
-| `word_popper.py` | `App`: the card, right-click menu, Ctrl+Shift hotkey, clipboard and screenshot handling, lookup flow, settings load/save, opening every window |
+| `word_popper.py` | `App`: the card, Ctrl+Shift hotkey, clipboard and screenshot handling, lookup flow, settings load/save, loading features and building the menu from them |
+| `features/` | One module per feature (`review`, `todos`, `library`, `journal`) plus `base.py` and `_template.py` |
 | `lookup.py` | Translation (Google, unofficial endpoint), Youdao EN↔ZH dictionary and IPA, Windows OCR |
 | `speech.py` | `Speaker`: Edge TTS to cached mp3, played through MCI, SAPI fallback |
 | `languages.py` | Supported languages, voices, OCR tags |
 | `i18n.py` | Every UI string, `t(key, **kw)` |
 | `vocab.py` | Word list (`Vocab`), review flash cards, word-list window |
 | `library.py` | Library check-in (`LibraryLog`), goals and dated to-dos with stopwatches (`TodoList`), `DatePicker`, `Celebration`, `TodoWindow`, `LibraryWindow` |
-| `journal.py` | Day-by-day journal built from `SECTIONS`, plus written reflections |
+| `journal.py` | Journal store and window; a page is the sections of every feature that's on |
 | `settings_window.py` | Settings UI, Start-with-Windows shortcut |
 | `packaging/` | PyInstaller build of a standalone exe (see caveats) |
 | `demo/` | Scripts that recorded `docs/demo.mp4` / `docs/demo.gif` |

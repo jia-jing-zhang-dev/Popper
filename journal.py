@@ -1,8 +1,7 @@
 """Journal: one page per day with everything you did, plus a written reflection.
 
-A page is made of sections (see SECTIONS). Each section reads one kind of activity for a day:
-finished tasks, new words, library visits... To show a new feature in the journal, write a
-function `(app, start, end) -> Section | None` and add it to SECTIONS.
+A page is made of sections. Each feature contributes its own through Feature.journal_sections():
+functions `(app, start, end) -> Section | None` that read one kind of activity for a day.
 """
 
 import datetime as dt
@@ -11,7 +10,7 @@ import tkinter as tk
 from dataclasses import dataclass, field
 
 from i18n import t
-from library import ACCENT, BG, FG, FG_DIM, GOOD, PANEL, day_label, fmt_clock, fmt_duration
+from library import ACCENT, BG, FG, FG_DIM, PANEL, day_label
 
 JOURNAL_DAYS = 120   # how far back the day list goes
 SAVE_DELAY_MS = 700  # reflections are saved this long after you stop typing
@@ -72,56 +71,9 @@ def day_bounds(day):
     return start, start + 86400
 
 
-def library_section(app, start, end):
-    rows = app.library.db.execute(
-        "SELECT * FROM library_sessions WHERE start < ? AND COALESCE(end, ?) > ? ORDER BY start",
-        (end, time.time(), start)).fetchall()
-    if not rows:
-        return None
-    lines, total = [], 0
-    for r in rows:
-        a, b = max(r["start"], start), min(r["end"] or time.time(), end)
-        total += b - a
-        until = dt.datetime.fromtimestamp(r["end"]).strftime("%H:%M") if r["end"] else t("lib_ongoing")
-        lines.append(Line(f"{dt.datetime.fromtimestamp(r['start']).strftime('%H:%M')} – {until}",
-                          right=fmt_duration(b - a)))
-    return Section(t("j_library"), t("j_library_sum", time=fmt_duration(total)), lines)
-
-
-def tasks_section(app, start, end):
-    rows = app.todos.db.execute(
-        "SELECT todos.*, goals.title AS goal FROM todos LEFT JOIN goals ON goals.id = todos.goal_id "
-        "WHERE todos.done=1 AND todos.done_at >= ? AND todos.done_at < ? ORDER BY todos.done_at",
-        (start, end)).fetchall()
-    if not rows:
-        return None
-    total = sum(r["spent"] or 0 for r in rows)
-    lines = [Line(f"✓ {r['text']}", note=r["goal"] or "", right=fmt_clock(r["spent"]) if r["spent"] else "—",
-                  on_double=lambda i=r["id"]: app.todos.reopen(i)) for r in rows]
-    summary = t("j_tasks_sum", n=len(rows)) + (f" · {fmt_duration(total)}" if total >= 60 else "")
-    return Section(t("j_tasks"), summary, lines, hint=t("j_tasks_hint"))
-
-
-def words_section(app, start, end):
-    rows = app.vocab.db.execute("SELECT * FROM words WHERE added >= ? AND added < ? ORDER BY added",
-                                (start, end)).fetchall()
-    if not rows:
-        return None
-    lines = []
-    for r in rows:
-        item = app.vocab.to_item(r)
-        lines.append(Line(item["word"], note=item["trans"], right=app.pron_text(item),
-                          on_click=lambda it=item: app.speak_item(it)))
-    return Section(t("j_words"), t("j_words_sum", n=len(rows)), lines, hint=t("j_words_hint"))
-
-
-# Order on the page. Add new features here.
-SECTIONS = [tasks_section, words_section, library_section]
-
-
 def page(app, day):
     start, end = day_bounds(day)
-    return [s for s in (make(app, start, end) for make in SECTIONS) if s]
+    return [s for s in (make(app, start, end) for make in app.journal_sections()) if s]
 
 
 def active_days(app, days=JOURNAL_DAYS):
