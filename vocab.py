@@ -265,7 +265,8 @@ class VocabWindow:
         self.tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
-        self.tree.bind("<Double-1>", lambda e: self.speak())
+        # clicking a word (or moving to it with the arrow keys) reads it out
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self.speak())
         self.tree.bind("<Delete>", lambda e: self.delete())
 
         self.status = ttk.Label(top, padding=(8, 4))
@@ -290,7 +291,9 @@ class VocabWindow:
         return [self.items[i] for i in self.tree.selection() if i in self.items]
 
     def speak(self):
-        for item in self.selected()[:1]:
+        """Read the word that was just clicked (the focused row, even when several are selected)."""
+        item = self.items.get(self.tree.focus())
+        if item:
             self.app.speak_item(item)
 
     def delete(self):
