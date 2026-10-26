@@ -26,6 +26,7 @@ from languages import LANGUAGES, label, normalize, voice_for
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
 from settings_window import SettingsWindow
 from speech import Speaker
+from library import LibraryLog, LibraryWindow, fmt_duration, fmt_long
 from vocab import ReviewWindow, Vocab, VocabWindow
 
 FROZEN = getattr(sys, "frozen", False)  # running as the packaged WordPopper.exe
@@ -94,7 +95,7 @@ def load_settings():
                 "learn": "es" if native == "en" else "en",
                 "native": native, "voices": {}, "speed": "-10%", "text_size": "normal",
                 "trigger": "ctrl_shift",
-                "screenshots": True, "listening": True, "x": None, "bottom": None}
+                "screenshots": True, "listening": True, "library": False, "x": None, "bottom": None}
     try:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
             saved = json.load(f)
@@ -150,6 +151,7 @@ class App:
         i18n.set_language(self.settings["ui_lang"])
         self.speaker = Speaker(on_play=log_event)
         self.vocab = Vocab(VOCAB_PATH)
+        self.library = LibraryLog(self.vocab.db)
         self.ui_q = queue.Queue()
         self.current = None        # dict: word / trans / senses / pron / speak / speak_lang
         self.last_trigger = ("", 0.0)
@@ -158,7 +160,7 @@ class App:
         self.hotkey = {"armed_at": None, "dirty": False}
         self.collapse_job = None
         self.drag = None
-        self.review_win = self.vocab_win = self.settings_win = None
+        self.review_win = self.vocab_win = self.settings_win = self.library_win = None
 
         root = self.root = tk.Tk()
         root.title("Word Popper")
@@ -202,6 +204,7 @@ class App:
         root.after(300, self.poll_clipboard)
         root.after(30, self.poll_hotkey)
         root.after(100, self.poll_ui_queue)
+        root.after(1000, self.library_tick)
 
     # ---------- layout
 
@@ -260,12 +263,15 @@ class App:
         text = f"🔊 {self.current['word']}" if self.current else f"🔊 {t('idle')}"
         if not self.settings["listening"]:
             text += f"  {t('paused')}"
+        session = self.settings["library"] and self.library.current()
+        if session:
+            text += f"   ·  {t('lib_card', time=fmt_duration(time.time() - session['start']))}"
         self.word_lbl.configure(text=text)
 
-    def flash(self, message):
+    def flash(self, message, ms=1500):
         self.word_lbl.configure(text=message)
         self.place_window()
-        self.root.after(1500, lambda: (self.update_status(), self.place_window()))
+        self.root.after(ms, lambda: (self.update_status(), self.place_window()))
 
     # ---------- mouse
 
@@ -306,6 +312,13 @@ class App:
         if not items:
             recent.add_command(label=t("menu_none"), state="disabled")
         menu.add_cascade(label=t("menu_recent"), menu=recent)
+        if self.settings["library"]:
+            menu.add_separator()
+            session = self.library.current()
+            label_ = (t("menu_lib_out", time=fmt_duration(time.time() - session["start"])) if session
+                      else t("menu_lib_in"))
+            menu.add_command(label=label_, command=self.toggle_library)
+            menu.add_command(label=t("menu_lib_stats"), command=self.open_library)
         menu.add_separator()
         menu.add_command(label=f"{t('menu_settings')}   ({LANGUAGES[self.settings['learn']][1]} → "
                                f"{LANGUAGES[self.settings['native']][1]})", command=self.open_settings)
@@ -339,6 +352,37 @@ class App:
             self.vocab_win.refresh()
             return
         self.vocab_win = VocabWindow(self)
+
+    # ---------- library check-in
+
+    def toggle_library(self):
+        if self.library.current():
+            seconds = self.library.check_out()
+            self.flash(t("flash_lib_out", time=fmt_long(seconds)), ms=3000)
+        else:
+            self.library.check_in()
+            self.flash(t("flash_lib_in", time=time.strftime("%H:%M")), ms=3000)
+        if self.library_win and self.library_win.top.winfo_exists():
+            self.library_win.refresh()
+
+    def open_library(self):
+        if self._reuse(self.library_win):
+            self.library_win.refresh()
+            return
+        self.library_win = LibraryWindow(self)
+
+    def library_tick(self):
+        """Keep the timer on the card current and end sessions nobody checked out of."""
+        try:
+            if self.library.close_stale():
+                messagebox.showinfo(t("lib_title"), t("lib_auto_closed"), parent=self.root)
+                if self.library_win and self.library_win.top.winfo_exists():
+                    self.library_win.refresh()
+            if self.settings["library"] and self.library.current():
+                self.update_status()
+                self.place_window()
+        finally:
+            self.root.after(30000, self.library_tick)
 
     def open_settings(self):
         if not self._reuse(self.settings_win):
