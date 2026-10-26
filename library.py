@@ -136,11 +136,11 @@ def countdown(deadline):
 
 
 class TodoList:
-    """Long-term goals, dated tasks with timers, and the archive of finished tasks.
+    """Long-term goals and dated tasks with timers.
 
     A task is planned for a day (today by default). Today's list holds unfinished tasks planned for
     today or earlier; later ones wait under "Coming up". Each task has a stopwatch (one runs at a
-    time); ticking a task off stops it, and the task moves to the archive with the time it took.
+    time); ticking a task off stops it and records the time it took (shown in the journal).
     """
 
     def __init__(self, db):
@@ -232,15 +232,6 @@ class TodoList:
     def delete(self, todo_id):
         self.db.execute("DELETE FROM todos WHERE id=?", (todo_id,))
         self.db.commit()
-
-    def archive(self, days=60):
-        """Finished tasks of the last `days` days: [(date, total seconds, [rows])], newest first."""
-        since = start_of_today() - (days - 1) * 86400
-        groups = {}
-        for row in self.db.execute(self._SELECT + "WHERE todos.done=1 AND todos.done_at >= ? "
-                                   "ORDER BY todos.done_at DESC", (since,)):
-            groups.setdefault(dt.date.fromtimestamp(row["done_at"]), []).append(row)
-        return [(day, sum(r["spent"] or 0 for r in rows), rows) for day, rows in groups.items()]
 
     def done_by_day(self, since):
         counts = {}
@@ -364,7 +355,7 @@ class DatePicker:
 
 
 class TodoWindow:
-    """Three columns: long-term goals | today (plus what's coming up) | archive of finished tasks.
+    """Two columns: long-term goals | today (plus what's coming up). Finished tasks go to the journal.
 
     Each column has its input at the top and its list below, so nothing that changes ever moves an
     input box (on some machines a moved Entry was left drawn at its old position).
@@ -390,12 +381,12 @@ class TodoWindow:
 
         columns = tk.Frame(top, bg=BG)
         columns.pack(fill="both", expand=True, padx=12, pady=(0, 16))
-        columns.columnconfigure((0, 1, 2), weight=1, uniform="col")
+        columns.columnconfigure((0, 1), weight=1, uniform="col")
         columns.rowconfigure(0, weight=1)
-        cols = [tk.Frame(columns, bg=BG) for _ in range(3)]
+        cols = [tk.Frame(columns, bg=BG) for _ in range(2)]
         for i, col in enumerate(cols):
             col.grid(row=0, column=i, sticky="nsew", padx=8)
-        left, middle, right = cols
+        left, middle = cols
 
         # long-term goals
         self.section(left, t("goal_section"))
@@ -423,31 +414,8 @@ class TodoWindow:
         self.task_rows = tk.Frame(middle, bg=BG)
         self.task_rows.pack(fill="both", expand=True)
 
-        # archive
-        self.archive_total = self.section(right, t("archive_section"))
-        box = tk.Frame(right, bg=PANEL)
-        box.pack(fill="both", expand=True, pady=(4, 0))
-        self.archive = tk.Text(box, bg=PANEL, fg=FG, relief="flat", wrap="none", cursor="arrow",
-                               padx=int(10 * s), pady=int(8 * s), spacing1=int(3 * s), spacing3=int(3 * s),
-                               font=app.font("Microsoft YaHei UI", 10), width=1, height=1,
-                               highlightthickness=0, selectbackground=PANEL, inactiveselectbackground=PANEL)
-        scroll = tk.Scrollbar(box, command=self.archive.yview)
-        self.archive.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
-        self.archive.pack(side="left", fill="both", expand=True)
-        self.archive.tag_configure("day", foreground=ACCENT, font=app.font("Microsoft YaHei UI Semibold", 10),
-                                   spacing1=int(10 * s))
-        self.archive.tag_configure("goal", foreground=FG_DIM, font=app.font("Microsoft YaHei UI", 9),
-                                   spacing1=0)
-        self.archive.tag_configure("time", foreground=FG_DIM)
-        self.archive.tag_configure("empty", foreground=FG_DIM)
-        self.archive.bind("<Configure>", lambda e: self.archive.configure(
-            tabs=(max(e.width - int(24 * s), 100), "right")))
-        tk.Label(right, text=t("archive_hint"), bg=BG, fg=FG_DIM,
-                 font=app.font("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(4, 0))
-
         top.bind("<Escape>", lambda e: top.destroy())
-        top.minsize(int(1050 * s), int(480 * s))
+        top.minsize(int(820 * s), int(440 * s))
         self.refresh()
         self.tick()
         top.lift()
@@ -653,28 +621,6 @@ class TodoWindow:
                          note_fg=FG_DIM,
                          timer=(r, lambda i=r["id"]: self.act(todos.start, i), lambda i=r["id"]: self.act(todos.pause, i)))
 
-        # archive
-        arc = self.archive
-        arc.configure(state="normal")
-        arc.delete("1.0", "end")
-        groups = todos.archive()
-        self.archive_total.configure(text=t("archive_total", n=sum(len(rows) for _, _, rows in groups)) if groups else "")
-        if not groups:
-            arc.insert("end", t("archive_empty"), "empty")
-        for day, seconds, rows in groups:
-            arc.insert("end", f"{day_label(day)} · {t('archive_count', n=len(rows))}", "day")
-            arc.insert("end", f"\t{fmt_duration(seconds)}\n" if seconds else "\n", ("day", "time"))
-            for r in rows:
-                tag = f"task-{r['id']}"
-                text = r["text"] if len(r["text"]) <= 22 else r["text"][:21] + "…"
-                arc.insert("end", f"✓ {text}", tag)
-                arc.insert("end", f"\t{fmt_clock(r['spent']) if r['spent'] else '—'}\n", (tag, "time"))
-                if r["goal"]:  # on its own line so a long goal never pushes the time out of view
-                    arc.insert("end", f"    {r['goal']}\n", (tag, "goal"))
-                arc.tag_bind(tag, "<Double-1>", lambda e, i=r["id"]: self.act(todos.reopen, i))
-                arc.tag_bind(tag, "<Enter>", lambda e: arc.configure(cursor="hand2"))
-                arc.tag_bind(tag, "<Leave>", lambda e: arc.configure(cursor="arrow"))
-        arc.configure(state="disabled")
 
         self.top.geometry("")  # grow or shrink with the lists
 
