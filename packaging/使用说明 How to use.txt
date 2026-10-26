@@ -27,9 +27,10 @@ Word Popper 使用说明
 查词方式、开机自动启动、图书馆打卡。
 
 【图书馆打卡】（先在设置里勾选“图书馆打卡”）
-右键卡片 →“图书馆打卡”：没签到时点它就是签到，并自动打开“今日待办”；
+右键卡片 →“图书馆打卡”：没签到时点它就是签到，并自动打开“目标与待办”；
 已签到时点它就是签退，会显示本次在馆时长和完成了几项任务。
-今日待办：输入任务按回车添加，点一下打勾，× 删除；没做完的任务会留到第二天。
+长期目标：写目标名，可选填截止日期（如 12-20），会显示倒计时和已完成的任务数。
+今日待办：输入任务按回车添加，右边可以选关联哪个目标；点一下打勾，× 删除；没做完的任务会留到第二天。
 右键卡片 →“打卡记录…”：今天 / 本周时长、连续打卡天数、日历热力图、每次的签到记录和当天新词数。
 忘记签退的话，超过 8 小时会自动结束。
 
@@ -67,7 +68,9 @@ Settings (right-click → Settings…): interface language, the language you're 
 language to translate into (12 languages), voice, speed, text size, trigger, start with Windows, library check-in.
 
 Library check-in (turn it on in Settings first): right-click → Library check-in. It checks you in
-(and opens today's to-do list) or out (and shows your time and tasks done), whichever applies. Right-click → Library log… shows today, this week, your
+(and opens Goals & to-dos) or out (and shows your time and tasks done), whichever applies.
+Long-term goals take an optional deadline (e.g. 12-20) and show a countdown; tasks can be attached
+to a goal. Right-click → Library log… shows today, this week, your
 streak and a calendar heatmap. A session you forget to end stops after 8 hours.
 
 Notes
