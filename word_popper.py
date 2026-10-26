@@ -26,7 +26,7 @@ from languages import LANGUAGES, label, normalize, voice_for
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
 from settings_window import SettingsWindow
 from speech import Speaker
-from library import LibraryLog, LibraryWindow, fmt_duration, fmt_long
+from library import LibraryLog, LibraryWindow, TodoList, TodoWindow, fmt_duration, fmt_long
 from vocab import ReviewWindow, Vocab, VocabWindow
 
 FROZEN = getattr(sys, "frozen", False)  # running as the packaged WordPopper.exe
@@ -152,6 +152,7 @@ class App:
         self.speaker = Speaker(on_play=log_event)
         self.vocab = Vocab(VOCAB_PATH)
         self.library = LibraryLog(self.vocab.db)
+        self.todos = TodoList(self.vocab.db)
         self.ui_q = queue.Queue()
         self.current = None        # dict: word / trans / senses / pron / speak / speak_lang
         self.last_trigger = ("", 0.0)
@@ -160,7 +161,7 @@ class App:
         self.hotkey = {"armed_at": None, "dirty": False}
         self.collapse_job = None
         self.drag = None
-        self.review_win = self.vocab_win = self.settings_win = self.library_win = None
+        self.review_win = self.vocab_win = self.settings_win = self.library_win = self.todo_win = None
 
         root = self.root = tk.Tk()
         root.title("Word Popper")
@@ -263,9 +264,6 @@ class App:
         text = f"🔊 {self.current['word']}" if self.current else f"🔊 {t('idle')}"
         if not self.settings["listening"]:
             text += f"  {t('paused')}"
-        session = self.settings["library"] and self.library.current()
-        if session:
-            text += f"   ·  {t('lib_card', time=fmt_duration(time.time() - session['start']))}"
         self.word_lbl.configure(text=text)
 
     def flash(self, message, ms=1500):
@@ -315,9 +313,12 @@ class App:
         if self.settings["library"]:
             menu.add_separator()
             session = self.library.current()
-            label_ = (t("menu_lib_out", time=fmt_duration(time.time() - session["start"])) if session
-                      else t("menu_lib_in"))
+            label_ = (t("menu_lib_in_now", time=fmt_duration(time.time() - session["start"])) if session
+                      else t("menu_lib"))
             menu.add_command(label=label_, command=self.toggle_library)
+            done, total = self.todos.progress()
+            menu.add_command(label=t("menu_todo", done=done, total=total) if total else t("todo_title"),
+                             command=self.open_todo)
             menu.add_command(label=t("menu_lib_stats"), command=self.open_library)
         menu.add_separator()
         menu.add_command(label=f"{t('menu_settings')}   ({LANGUAGES[self.settings['learn']][1]} → "
@@ -356,14 +357,26 @@ class App:
     # ---------- library check-in
 
     def toggle_library(self):
+        """One button: checks in (and opens today's to-dos) or checks out, whichever applies."""
         if self.library.current():
             seconds = self.library.check_out()
-            self.flash(t("flash_lib_out", time=fmt_long(seconds)), ms=3000)
+            done, total = self.todos.progress()
+            message = t("flash_lib_out", time=fmt_long(seconds))
+            if total:
+                message += t("flash_lib_tasks", done=done, total=total)
+            self.flash(message, ms=4000)
         else:
             self.library.check_in()
             self.flash(t("flash_lib_in", time=time.strftime("%H:%M")), ms=3000)
+            self.open_todo()
         if self.library_win and self.library_win.top.winfo_exists():
             self.library_win.refresh()
+
+    def open_todo(self):
+        if self._reuse(self.todo_win):
+            self.todo_win.refresh()
+            return
+        self.todo_win = TodoWindow(self)
 
     def open_library(self):
         if self._reuse(self.library_win):
@@ -372,15 +385,12 @@ class App:
         self.library_win = LibraryWindow(self)
 
     def library_tick(self):
-        """Keep the timer on the card current and end sessions nobody checked out of."""
+        """End sessions nobody checked out of."""
         try:
             if self.library.close_stale():
                 messagebox.showinfo(t("lib_title"), t("lib_auto_closed"), parent=self.root)
                 if self.library_win and self.library_win.top.winfo_exists():
                     self.library_win.refresh()
-            if self.settings["library"] and self.library.current():
-                self.update_status()
-                self.place_window()
         finally:
             self.root.after(30000, self.library_tick)
 
