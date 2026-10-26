@@ -225,7 +225,11 @@ class TodoList:
 
 
 class TodoWindow:
-    """Long-term goals on top, today's to-dos below. Opens when you check in at the library."""
+    """Long-term goals on the left, today's to-dos on the right. Opens when you check in at the library.
+
+    Each column has its input at the top and its list below, so adding or ticking things never moves an
+    input box (on some machines a moved Entry was left drawn at its old position).
+    """
 
     def __init__(self, app):
         self.app = app
@@ -234,7 +238,7 @@ class TodoWindow:
         top.configure(bg=BG)
         top.attributes("-topmost", True)
         s = app.scale
-        self.wrap = int(300 * s)
+        self.wrap = int(250 * s)
 
         head = tk.Frame(top, bg=BG)
         head.pack(fill="x", padx=18, pady=(14, 0))
@@ -242,32 +246,40 @@ class TodoWindow:
         self.session = tk.Label(head, bg=BG, fg=ACCENT, font=app.font("Microsoft YaHei UI", 10))
         self.session.pack(side="right")
 
+        columns = tk.Frame(top, bg=BG)
+        columns.pack(fill="both", expand=True, padx=12, pady=(0, 16))
+        columns.columnconfigure((0, 1), weight=1, uniform="col")
+        columns.rowconfigure(0, weight=1)
+        left, right = tk.Frame(columns, bg=BG), tk.Frame(columns, bg=BG)
+        left.grid(row=0, column=0, sticky="nsew", padx=(6, 12))
+        right.grid(row=0, column=1, sticky="nsew", padx=(12, 6))
+
         # long-term goals
-        self.section(top, t("goal_section"))
-        goal_bar = tk.Frame(top, bg=BG)
-        goal_bar.pack(fill="x", padx=18, pady=(4, 4))
+        self.section(left, t("goal_section"))
+        goal_bar = tk.Frame(left, bg=BG)
+        goal_bar.pack(fill="x", pady=(4, 6))
         self.goal_entry = self.entry(goal_bar, t("goal_hint"), self.add_goal)
         self.goal_entry.pack(side="left", fill="x", expand=True, ipady=int(5 * s))
-        self.deadline_entry = self.entry(goal_bar, t("goal_deadline_hint"), self.add_goal, width=12)
+        self.deadline_entry = self.entry(goal_bar, t("goal_deadline_hint"), self.add_goal, width=11)
         self.deadline_entry.pack(side="left", padx=(6, 0), ipady=int(5 * s))
-        self.goal_rows = tk.Frame(top, bg=BG)
-        self.goal_rows.pack(fill="x", padx=12)
+        self.goal_rows = tk.Frame(left, bg=BG)
+        self.goal_rows.pack(fill="both", expand=True)
 
         # today's to-dos
-        self.progress = self.section(top, t("todo_section"))
-        task_bar = tk.Frame(top, bg=BG)
-        task_bar.pack(fill="x", padx=18, pady=(4, 4))
+        self.progress = self.section(right, t("todo_section"))
+        task_bar = tk.Frame(right, bg=BG)
+        task_bar.pack(fill="x", pady=(4, 6))
         self.task_entry = self.entry(task_bar, t("todo_hint"), self.add_task)
         self.task_entry.pack(side="left", fill="x", expand=True, ipady=int(5 * s))
         self.goal_var = tk.StringVar()
-        self.goal_box = ttk.Combobox(task_bar, textvariable=self.goal_var, state="readonly", width=14,
+        self.goal_box = ttk.Combobox(task_bar, textvariable=self.goal_var, state="readonly", width=12,
                                      font=app.font("Microsoft YaHei UI", 10))
         self.goal_box.pack(side="left", padx=(6, 0))
-        self.task_rows = tk.Frame(top, bg=BG)
-        self.task_rows.pack(fill="both", expand=True, padx=12, pady=(0, 16))
+        self.task_rows = tk.Frame(right, bg=BG)
+        self.task_rows.pack(fill="both", expand=True)
 
         top.bind("<Escape>", lambda e: top.destroy())
-        top.minsize(int(460 * s), int(380 * s))
+        top.minsize(int(820 * s), int(420 * s))
         self.refresh()
         self.tick()
         top.lift()
@@ -278,7 +290,7 @@ class TodoWindow:
 
     def section(self, parent, title):
         bar = tk.Frame(parent, bg=BG)
-        bar.pack(fill="x", padx=18, pady=(14, 0))
+        bar.pack(fill="x", padx=6, pady=(14, 0))
         tk.Label(bar, text=title, bg=BG, fg=FG_DIM, font=self.app.font("Microsoft YaHei UI", 10)).pack(side="left")
         right = tk.Label(bar, bg=BG, fg=FG_DIM, font=self.app.font("Microsoft YaHei UI", 10))
         right.pack(side="right")
@@ -401,10 +413,7 @@ class TodoWindow:
         for r in rows:
             self.row(self.task_rows, r["done"], r["text"], r["goal"] or "",
                      lambda i=r["id"]: self.act(todos.toggle, i), lambda i=r["id"]: self.act(todos.delete, i))
-        # Re-fit the window to its content. Besides growing/shrinking with the lists, this makes Windows
-        # repaint the whole window: without it, widgets that moved could be left drawn at their old spot.
-        self.top.geometry("")
-        self.top.update_idletasks()
+        self.top.geometry("")  # grow or shrink with the lists
 
 
 def new_words_by_day(vocab_db, since):
