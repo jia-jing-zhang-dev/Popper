@@ -401,6 +401,10 @@ class TodoWindow:
         for r in rows:
             self.row(self.task_rows, r["done"], r["text"], r["goal"] or "",
                      lambda i=r["id"]: self.act(todos.toggle, i), lambda i=r["id"]: self.act(todos.delete, i))
+        # Re-fit the window to its content. Besides growing/shrinking with the lists, this makes Windows
+        # repaint the whole window: without it, widgets that moved could be left drawn at their old spot.
+        self.top.geometry("")
+        self.top.update_idletasks()
 
 
 def new_words_by_day(vocab_db, since):
