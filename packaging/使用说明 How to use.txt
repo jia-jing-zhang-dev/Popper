@@ -29,11 +29,14 @@ Word Popper 使用说明
 【图书馆打卡】（先在设置里勾选“图书馆打卡”）
 右键卡片 →“图书馆打卡”：没签到时点它就是签到，并自动打开“目标与待办”；
 已签到时点它就是签退，会显示本次在馆时长和完成了几项任务。
-“目标与待办”分三栏：
+“目标与待办”分两栏：
 - 长期目标：写目标名，点“截止日 ▾”在日历上选日期；显示倒计时、完成的任务数和总用时。
 - 今日待办：输入任务按回车添加；“今天 ▾”可以安排到别的日子，下面的按钮选关联哪个目标。
   点 ▶ 开始计时、⏸ 暂停（同一时间只计一个），打勾完成；没做完的任务会留到第二天，过期的标红。
-- 完成记录：做完的任务按日期存档，显示每个用了多久、每天合计；双击可以放回今日待办。
+
+【日记】右键卡片 →“日记…”
+每天一页：完成的任务和用时、新查的词（点一下听发音）、在图书馆的时间，
+最下面可以写当天的反思，会自动保存。左边列出有记录的日子，✎ 表示那天写了反思。
 右键卡片 →“打卡记录…”：今天 / 本周时长、连续打卡天数、日历热力图、每次的签到记录和当天新词数。
 忘记签退的话，超过 8 小时会自动结束。
 
@@ -72,9 +75,11 @@ language to translate into (12 languages), voice, speed, text size, trigger, sta
 
 Library check-in (turn it on in Settings first): right-click → Library check-in. It checks you in
 (and opens Goals & to-dos) or out (and shows your time and tasks done), whichever applies.
-Goals & to-dos has three columns: long-term goals (pick a deadline on the calendar), today's tasks
-(plan them for any day, attach a goal, time them with ▶ / ⏸) and Done, an archive by day with how
-long each task took. Double-click a done task to put it back on today's list. Right-click → Library log… shows today, this week, your
+Goals & to-dos has two columns: long-term goals (pick a deadline on the calendar) and today's tasks
+(plan them for any day, attach a goal, time them with ▶ / ⏸).
+
+Journal (right-click → Journal…): one page per day with finished tasks and their times, new words,
+library time, and a reflection you write (saved automatically). Right-click → Library log… shows today, this week, your
 streak and a calendar heatmap. A session you forget to end stops after 8 hours.
 
 Notes

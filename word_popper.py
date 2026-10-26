@@ -26,6 +26,7 @@ from languages import LANGUAGES, label, normalize, voice_for
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
 from settings_window import SettingsWindow
 from speech import Speaker
+from journal import Journal, JournalWindow
 from library import LibraryLog, LibraryWindow, TodoList, TodoWindow, fmt_duration, fmt_long
 from vocab import ReviewWindow, Vocab, VocabWindow
 
@@ -163,6 +164,7 @@ class App:
         self.vocab = Vocab(VOCAB_PATH)
         self.library = LibraryLog(self.vocab.db)
         self.todos = TodoList(self.vocab.db)
+        self.journal = Journal(self.vocab.db)
         self.ui_q = queue.Queue()
         self.current = None        # dict: word / trans / senses / pron / speak / speak_lang
         self.last_trigger = ("", 0.0)
@@ -171,7 +173,7 @@ class App:
         self.hotkey = {"armed_at": None, "dirty": False}
         self.collapse_job = None
         self.drag = None
-        self.review_win = self.vocab_win = self.settings_win = self.library_win = self.todo_win = None
+        self.review_win = self.vocab_win = self.settings_win = self.library_win = self.todo_win = self.journal_win = None
 
         root = self.root = tk.Tk()
         root.title("Word Popper")
@@ -320,6 +322,7 @@ class App:
         if not items:
             recent.add_command(label=t("menu_none"), state="disabled")
         menu.add_cascade(label=t("menu_recent"), menu=recent)
+        menu.add_command(label=t("menu_journal"), command=self.open_journal)
         if self.settings["library"]:
             menu.add_separator()
             session = self.library.current()
@@ -381,6 +384,12 @@ class App:
             self.open_todo()
         if self.library_win and self.library_win.top.winfo_exists():
             self.library_win.refresh()
+
+    def open_journal(self):
+        if self._reuse(self.journal_win):
+            self.journal_win.refresh()
+            return
+        self.journal_win = JournalWindow(self)
 
     def open_todo(self):
         if self._reuse(self.todo_win):

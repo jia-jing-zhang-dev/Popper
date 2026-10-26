@@ -33,12 +33,14 @@ screenshot OCR, settings, and spaced-repetition review.
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
 - **Optional library check-in with goals and a to-do list.** One menu item checks you in or out,
-  whichever applies. Checking in opens **Goals & to-dos**, three columns: long-term goals (deadline
-  from a calendar, countdown, tasks done and time spent), today's tasks (plan them for any day,
-  attach them to a goal, time them with a stopwatch), and an archive of finished tasks by day with
-  how long each took. Checking out
+  whichever applies. Checking in opens **Goals & to-dos**: long-term goals (deadline from a
+  calendar, countdown, tasks done and time spent) and today's tasks (plan them for any day, attach
+  them to a goal, time them with a stopwatch). Checking out
   tells you how long you stayed and how many tasks you finished. The library log has today / this
   week / your streak, a calendar heatmap, and the new words and tasks done each day. Off by default.
+- **A journal to look back on.** One page per day with the tasks you finished and how long each
+  took, the new words you looked up (click to hear them), your library time, and a reflection you
+  write yourself. New features plug in as extra sections.
 - **Stays out of your way.** A plain Ctrl+C never triggers it, your clipboard is restored after a
   lookup, and you can pause it from the menu.
 
@@ -86,6 +88,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Check in / out at the library | Right-click → **Library check-in** (turn on *Library check-in* in Settings first) |
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
+| Look back on a day and write a reflection | Right-click → **Journal…** |
 
 Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
 your word list.
@@ -165,6 +168,7 @@ lookup.py           translation (Google), dictionary (Youdao), OCR (Windows.Medi
 speech.py           Edge TTS with an mp3 cache; SAPI fallback
 vocab.py            SQLite word list, review window, word-list window
 library.py          library check-in sessions, streaks, goals and to-dos, and their windows
+journal.py          day-by-day journal built from sections, with written reflections
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags
 i18n.py             interface strings
