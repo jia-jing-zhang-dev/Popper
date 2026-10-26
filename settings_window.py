@@ -9,10 +9,20 @@ from tkinter import ttk
 from i18n import UI_LANGUAGES, t
 from languages import LANGUAGES, label, voices
 
-STARTUP_LINK = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs\Startup",
-                            "Word Popper.lnk")
+STARTUP_DIR = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs\Startup")
+STARTUP_LINK = os.path.join(STARTUP_DIR, "Popper.lnk")
+OLD_STARTUP_LINK = os.path.join(STARTUP_DIR, "Word Popper.lnk")  # before the rename
 SPEEDS = [("speed_slow", "-25%"), ("speed_relaxed", "-10%"), ("speed_normal", "+0%"), ("speed_fast", "+15%")]
 SIZES = [("size_small", "small"), ("size_normal", "normal"), ("size_large", "large"), ("size_huge", "huge")]
+
+
+def rename_startup_link():
+    """Carry a Start-with-Windows shortcut over from the old name, so there's never two."""
+    if os.path.exists(OLD_STARTUP_LINK):
+        if os.path.exists(STARTUP_LINK):
+            os.remove(OLD_STARTUP_LINK)
+        else:
+            os.replace(OLD_STARTUP_LINK, STARTUP_LINK)
 
 
 def autostart_enabled():
@@ -33,7 +43,7 @@ def set_autostart(enabled, script):
         args = f'"{script}"'
     ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:WP_LINK);"
           "$s.TargetPath=$env:WP_TARGET; $s.Arguments=$env:WP_ARGS;"
-          "$s.WorkingDirectory=$env:WP_DIR; $s.Description='Word Popper'; $s.Save()")
+          "$s.WorkingDirectory=$env:WP_DIR; $s.Description='Popper'; $s.Save()")
     env = dict(os.environ, WP_LINK=STARTUP_LINK, WP_TARGET=target, WP_ARGS=args,
                WP_DIR=os.path.dirname(script))
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=env,

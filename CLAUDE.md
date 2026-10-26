@@ -1,6 +1,12 @@
-# Word Popper
+# Popper (泡泡)
 
-A small Windows desktop companion (Python + Tkinter) built around a floating card in the corner
+Formerly Word Popper. The code still uses the old name in a few places on purpose: `word_popper.py`,
+the `WORD_POPPER_HOME` variable, the single-instance mutex and the packaged app's data folder
+`%APPDATA%\Word Popper`. Don't rename those. Renaming them would split the owner's data and
+startup setup.
+
+
+A small Windows study companion (Python + Tkinter) built around a floating card in the corner
 of the screen. Select a word anywhere and tap Ctrl+Shift to get a translation and hear it; plus a
 word list with spaced-repetition review, library check-in, goals and to-dos with timers, and a
 day-by-day journal. Windows 10/11 only. The UI is bilingual (English / 简体中文).
@@ -20,7 +26,8 @@ run.bat                                     :: start (pythonw, no console)
 - Only one instance runs at a time (a named mutex). To load new code, stop the running copy and start
   it again. Match **only `pythonw.exe`** processes whose command line contains `word_popper.py`.
   A broader match also kills the shell running the command, because its command line contains the
-  same text. Then start `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Word Popper.lnk`.
+  same text. Then start `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Popper.lnk`
+  (`rename_startup_link()` moves an old `Word Popper.lnk` over on start).
 - Settings changed by editing `settings.json` only take effect if the app is stopped first,
   otherwise it writes its in-memory settings back over the file.
 
@@ -110,9 +117,9 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 ## Git
 
 - Commit after each finished feature (one feature per commit, tested first), then push.
-- Author identity is `jia-jing-zhang-dev` (global git config). The remote is the **private** repo
-  `jia-jing-zhang-dev/Real-Time-Translate-MCP-` and stays private. Don't describe the project as
-  open source.
+- Author identity is `jia-jing-zhang-dev` (global git config). The remote is
+  `jia-jing-zhang-dev/Popper` (renamed from `Real-Time-Translate-MCP-`), which is **public**: everything
+  pushed is visible to anyone. Never commit personal data, keys or tokens.
 - `settings.json`, `vocab.db`, `.venv/`, `build/`, `dist/`, `demo/_work/` are ignored. Keep it that way;
   `vocab.db` is the owner's personal data.
 
