@@ -4,6 +4,7 @@ import datetime as dt
 import sqlite3
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk
 
 from i18n import t
@@ -16,6 +17,7 @@ PANEL = "#2a3040"
 FG = "#f2f4f8"
 FG_DIM = "#9aa3b5"
 ACCENT = "#7cc4ff"
+GOOD = "#46d07e"
 # heatmap: no time, < 30 min, < 1 h, < 2 h, 2 h+
 HEAT = ["#2a3040", "#1d4a3a", "#23744f", "#2fa364", "#46d07e"]
 
@@ -104,6 +106,147 @@ class LibraryLog:
         return n
 
 
+def start_of_today():
+    return dt.datetime.combine(dt.date.today(), dt.time()).timestamp()
+
+
+class TodoList:
+    """Today's to-dos: everything not done yet (unfinished ones carry over) plus what was done today."""
+
+    def __init__(self, db):
+        self.db = db
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS todos (
+                id      INTEGER PRIMARY KEY,
+                text    TEXT NOT NULL,
+                done    INTEGER DEFAULT 0,
+                created REAL,
+                done_at REAL
+            )""")
+        self.db.commit()
+
+    def today(self):
+        return self.db.execute("SELECT * FROM todos WHERE done=0 OR done_at >= ? ORDER BY done, created",
+                               (start_of_today(),)).fetchall()
+
+    def progress(self):
+        rows = self.today()
+        return sum(r["done"] for r in rows), len(rows)
+
+    def add(self, text):
+        self.db.execute("INSERT INTO todos (text, created) VALUES (?, ?)", (text, time.time()))
+        self.db.commit()
+
+    def toggle(self, todo_id):
+        self.db.execute("UPDATE todos SET done = 1 - done, done_at = CASE WHEN done = 0 THEN ? END WHERE id=?",
+                        (time.time(), todo_id))
+        self.db.commit()
+
+    def delete(self, todo_id):
+        self.db.execute("DELETE FROM todos WHERE id=?", (todo_id,))
+        self.db.commit()
+
+    def done_by_day(self, since):
+        counts = {}
+        for (done_at,) in self.db.execute("SELECT done_at FROM todos WHERE done=1 AND done_at >= ?", (since,)):
+            day = dt.date.fromtimestamp(done_at)
+            counts[day] = counts.get(day, 0) + 1
+        return counts
+
+
+class TodoWindow:
+    """Today's to-do list, opened when you check in at the library."""
+
+    def __init__(self, app):
+        self.app = app
+        top = self.top = tk.Toplevel(app.root)
+        top.title(t("todo_title"))
+        top.configure(bg=BG)
+        top.attributes("-topmost", True)
+        s = app.scale
+        self.wrap = int(330 * s)
+
+        head = tk.Frame(top, bg=BG)
+        head.pack(fill="x", padx=18, pady=(14, 4))
+        tk.Label(head, text=t("todo_title"), bg=BG, fg=FG, font=app.font("Microsoft YaHei UI", 15)).pack(side="left")
+        self.progress = tk.Label(head, bg=BG, fg=FG_DIM, font=app.font("Microsoft YaHei UI", 10))
+        self.progress.pack(side="right")
+        self.session = tk.Label(top, bg=BG, fg=ACCENT, font=app.font("Microsoft YaHei UI", 10), anchor="w")
+        self.session.pack(fill="x", padx=18)
+
+        self.entry = tk.Entry(top, bg=PANEL, fg=FG_DIM, insertbackground=FG, relief="flat",
+                              font=app.font("Microsoft YaHei UI", 11))
+        self.entry.pack(fill="x", padx=18, pady=(10, 8), ipady=int(6 * s))
+        self.entry.insert(0, t("todo_hint"))
+        self.entry.bind("<FocusIn>", self.clear_hint)
+        self.entry.bind("<Return>", self.add)
+
+        self.rows = tk.Frame(top, bg=BG)
+        self.rows.pack(fill="both", expand=True, padx=12, pady=(0, 16))
+        top.bind("<Escape>", lambda e: top.destroy())
+        top.minsize(int(400 * s), int(260 * s))
+        self.refresh()
+        self.tick()
+        top.lift()
+        top.focus_force()
+        self.entry.focus_set()
+
+    def clear_hint(self, _=None):
+        if self.entry.get() == t("todo_hint"):
+            self.entry.delete(0, "end")
+            self.entry.configure(fg=FG)
+
+    def add(self, _=None):
+        self.clear_hint()
+        text = self.entry.get().strip()
+        if text:
+            self.app.todos.add(text)
+            self.entry.delete(0, "end")
+            self.refresh()
+
+    def toggle(self, todo_id):
+        self.app.todos.toggle(todo_id)
+        self.refresh()
+
+    def delete(self, todo_id):
+        self.app.todos.delete(todo_id)
+        self.refresh()
+
+    def tick(self):
+        if not self.top.winfo_exists():
+            return
+        row = self.app.library.current()
+        self.session.configure(text=t("lib_in", time=fmt_duration(time.time() - row["start"])) if row else "")
+        self.top.after(15000, self.tick)
+
+    def refresh(self):
+        for w in self.rows.winfo_children():
+            w.destroy()
+        rows = self.app.todos.today()
+        done, total = self.app.todos.progress()
+        self.progress.configure(text=t("todo_progress", done=done, total=total) if total else "")
+        if not rows:
+            tk.Label(self.rows, text=t("todo_empty"), bg=BG, fg=FG_DIM,
+                     font=self.app.font("Microsoft YaHei UI", 10)).pack(anchor="w", padx=6, pady=8)
+        for r in rows:
+            line = tk.Frame(self.rows, bg=BG)
+            line.pack(fill="x", pady=2)
+            box = tk.Label(line, text="☑" if r["done"] else "☐", bg=BG, cursor="hand2",
+                           fg=GOOD if r["done"] else FG_DIM, font=self.app.font("Segoe UI Symbol", 14))
+            box.pack(side="left", padx=(6, 8))
+            text_font = tkfont.Font(family="Microsoft YaHei UI", size=round(11 * self.app.zoom),
+                                    overstrike=bool(r["done"]))
+            text = tk.Label(line, text=r["text"], bg=BG, fg=FG_DIM if r["done"] else FG, cursor="hand2",
+                            font=text_font, anchor="w", justify="left", wraplength=self.wrap)
+            text.pack(side="left", fill="x", expand=True)
+            text.font = text_font  # keep a reference so Tk doesn't drop it
+            close = tk.Label(line, text="×", bg=BG, fg=FG_DIM, cursor="hand2", font=self.app.font("Segoe UI", 13))
+            close.pack(side="right", padx=6)
+            for w in (box, text):
+                w.bind("<Button-1>", lambda e, i=r["id"]: self.toggle(i))
+            close.bind("<Button-1>", lambda e, i=r["id"]: self.delete(i))
+
+
 def new_words_by_day(vocab_db, since):
     rows = vocab_db.execute("SELECT added FROM words WHERE added >= ?", (since,))
     counts = {}
@@ -154,10 +297,11 @@ class LibraryWindow:
         self.hover = tk.Label(top, bg=BG, fg=FG_DIM, font=app.font("Microsoft YaHei UI", 9))
         self.hover.pack(anchor="w", padx=20)
 
-        cols = ("date", "in", "out", "length", "words")
+        cols = ("date", "in", "out", "length", "words", "tasks")
         self.tree = ttk.Treeview(top, columns=cols, show="headings", height=7)
-        for col, key, w in [("date", "lib_col_date", 110), ("in", "lib_col_in", 70), ("out", "lib_col_out", 90),
-                            ("length", "lib_col_length", 80), ("words", "lib_col_words", 80)]:
+        for col, key, w in [("date", "lib_col_date", 110), ("in", "lib_col_in", 60), ("out", "lib_col_out", 80),
+                            ("length", "lib_col_length", 60), ("words", "lib_col_words", 70),
+                            ("tasks", "lib_col_tasks", 70)]:
             self.tree.heading(col, text=t(key))
             self.tree.column(col, width=int(w * s), anchor="w")
         self.tree.pack(fill="both", expand=True, padx=20, pady=(8, 18))
@@ -226,6 +370,7 @@ class LibraryWindow:
                 info = t("lib_hover", date=day.isoformat(), time=fmt_long(secs), words=words.get(day, 0))
                 c.tag_bind(rect, "<Enter>", lambda e, s=info: self.hover.configure(text=s))
 
+        tasks = self.app.todos.done_by_day(since)
         self.tree.delete(*self.tree.get_children())
         for row in lib.sessions()[:60]:
             start = dt.datetime.fromtimestamp(row["start"])
@@ -238,4 +383,4 @@ class LibraryWindow:
                 out, length = t("lib_ongoing"), fmt_duration(time.time() - row["start"])
             date = t("lib_date", wd=t("lib_weekdays")[start.weekday()], m=start.month, d=start.day)
             self.tree.insert("", "end", values=(date, start.strftime("%H:%M"), out, length,
-                                                words.get(start.date(), "")))
+                                                words.get(start.date(), ""), tasks.get(start.date(), "")))
