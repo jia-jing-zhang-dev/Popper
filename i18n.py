@@ -2,7 +2,7 @@
 
 STRINGS = {
     "en": {
-        "idle": "Word Popper",
+        "idle": "Popper",
         "paused": "(paused)",
         "reading_screenshot": "Reading screenshot…",
         "translating": "Translating…",
@@ -64,7 +64,7 @@ STRINGS = {
         "vocab_delete_confirm": "Delete {names} from your word list?",
         "vocab_exported": "Exported to {path}",
         "csv_headers": ["Word", "Pronunciation", "Translation", "Meanings", "Lookups"],
-        "settings_title": "Word Popper Settings",
+        "settings_title": "Popper Settings",
         "set_ui_lang": "Interface language",
         "set_learn": "I'm learning",
         "set_native": "Translate into",
@@ -149,7 +149,7 @@ STRINGS = {
                        "Add it in Settings → Time & language → Language & region.",
     },
     "zh": {
-        "idle": "Word Popper",
+        "idle": "泡泡",
         "paused": "(已暂停)",
         "reading_screenshot": "识别截图中…",
         "translating": "翻译中…",
@@ -211,7 +211,7 @@ STRINGS = {
         "vocab_delete_confirm": "从词库删除 {names}？",
         "vocab_exported": "已导出到 {path}",
         "csv_headers": ["单词", "发音", "翻译", "释义", "查询次数"],
-        "settings_title": "Word Popper 设置",
+        "settings_title": "泡泡设置",
         "set_ui_lang": "界面语言",
         "set_learn": "我在学",
         "set_native": "翻译成",

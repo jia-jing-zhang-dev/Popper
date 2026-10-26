@@ -1,4 +1,7 @@
-"""Word Popper — look up any word you're reading, hear it, and review it later.
+"""Popper (泡泡) — a small study companion in the corner of the screen.
+
+The core is word lookup, described below; everything else is a feature in features/.
+
 
   - Select a word, phrase or sentence and tap Ctrl+Shift  -> translation + pronunciation
   - Win+Shift+S a word on screen (images, PDFs, videos)   -> OCR -> translation + pronunciation
@@ -24,16 +27,17 @@ import i18n
 from i18n import t
 from languages import LANGUAGES, label, normalize, voice_for
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
-from settings_window import SettingsWindow
+from settings_window import SettingsWindow, rename_startup_link
 from speech import Speaker
 from features import FEATURES
 from journal import Journal
 from library import LibraryLog, TodoList
 from vocab import Vocab
 
-FROZEN = getattr(sys, "frozen", False)  # running as the packaged WordPopper.exe
+FROZEN = getattr(sys, "frozen", False)  # running as the packaged Popper.exe
 SCRIPT_PATH = sys.executable if FROZEN else os.path.abspath(__file__)
 # The packaged app keeps settings and words in %APPDATA%, so they survive moving or updating it
+# ("Word Popper" is the old name, kept so existing data stays where it is)
 DATA_DIR = (os.environ.get("WORD_POPPER_HOME")
             or (os.path.join(os.environ["APPDATA"], "Word Popper") if FROZEN else os.path.dirname(SCRIPT_PATH)))
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -179,7 +183,7 @@ class App:
         self.settings_win = None
 
         root = self.root = tk.Tk()
-        root.title("Word Popper")
+        root.title("Popper")
         root.overrideredirect(True)
         root.attributes("-topmost", True)
         root.attributes("-alpha", 0.96)
@@ -221,6 +225,7 @@ class App:
         root.after(30, self.poll_hotkey)
         root.after(100, self.poll_ui_queue)
 
+        rename_startup_link()
         self.features = [cls(self) for cls in FEATURES]
         for feature in self.features:
             feature.start()
@@ -371,7 +376,7 @@ class App:
         learn = self.settings["learn"]
         wanted = LANGUAGES[learn][3].split("-")[0].lower()
         if not ocr_tag_for(learn).lower().startswith(wanted):
-            messagebox.showinfo("Word Popper", t("ocr_missing", lang=label(learn)), parent=self.root)
+            messagebox.showinfo(t("idle"), t("ocr_missing", lang=label(learn)), parent=self.root)
 
     def toggle_listening(self):
         self.settings["listening"] = not self.settings["listening"]
@@ -562,6 +567,7 @@ class App:
 
 if __name__ == "__main__":
     # Single instance: launching again while it's running does nothing
+    # (the mutex keeps its old name so an older copy and this one still exclude each other)
     _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "WordPopperSingleInstance")
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         sys.exit()

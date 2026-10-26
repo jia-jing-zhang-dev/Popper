@@ -1,5 +1,5 @@
 @echo off
-rem One-time setup: creates a virtual environment, installs dependencies, starts Word Popper.
+rem One-time setup: creates a virtual environment, installs dependencies, starts Popper.
 cd /d "%~dp0"
 
 if not exist .venv (
@@ -20,5 +20,5 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Starting Word Popper. Look for the small card in the bottom-right corner of your screen.
+echo Starting Popper. Look for the small card in the bottom-right corner of your screen.
 start "" .venv\Scripts\pythonw.exe word_popper.py

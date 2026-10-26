@@ -1,44 +1,51 @@
-# Word Popper
+# Popper (泡泡)
 
-**Learn vocabulary inside whatever you're already reading.**
+**A small study companion that lives in the corner of your screen, and keeps growing.**
 
-Word Popper is a tiny Windows companion for reading in a foreign language. Select a word in any
-app (a novel, a PDF, a web page, a subtitle) and tap **Ctrl+Shift**. A small card pops up with the
-translation and pronunciation, and you hear the word read aloud. Then you go back to reading.
-Every word you look up is saved, and you can review it later with spaced-repetition flash cards.
+Popper starts with one thing: select a word in any app (a novel, a PDF, a web page, a subtitle)
+and tap **Ctrl+Shift**. A small card pops up with the translation and pronunciation, and you hear
+the word read aloud. Then you go back to reading.
 
-You don't need a dictionary app, a browser tab, or a flash-card deck to set up. You learn the
-words that come up in the book you're actually reading, at the moment you need them.
+Around that card, Popper grows features you can switch on or off: spaced-repetition review of the
+words you looked up, long-term goals and dated to-dos with stopwatches, a library check-in, and a
+journal that collects every day into one page you can reflect on. Each feature is one module, so
+adding the next one doesn't touch the rest (see [Adding a feature](#adding-a-feature)).
 
-![Word Popper demo: looking up words while reading Pride and Prejudice](docs/demo.gif)
+![Popper demo: looking up words while reading Pride and Prejudice](docs/demo.gif)
 
 ▶ **[Watch the full demo with narration](docs/demo.mp4)** (2:04): English and Spanish books,
 screenshot OCR, settings, and spaced-repetition review.
 
-## Features
+## What it does
+
+### Word lookup (always on)
 
 - **Works in every app.** Select text anywhere, then tap Ctrl+Shift. Text you can't select
-  (images, scanned PDFs, video frames) works too: snip it with Win+Shift+S and Word Popper reads
+  (images, scanned PDFs, video frames) works too: snip it with Win+Shift+S and Popper reads
   it with Windows' built-in OCR.
 - **Hear it right away.** Natural neural voices (Microsoft Edge TTS) with regional accents: US,
   UK or Australian English; Spain or Mexico Spanish; Brazil or Portugal Portuguese; and more.
 - **More than a translation.** You get IPA for English, romanization for languages like Chinese
   (pinyin), Japanese (romaji) and Russian, and dictionary senses grouped by part of speech.
-- **A card that stays put.** The card sits quietly in a corner. Click it to hear the word again,
-  drag it anywhere, and right-click it for everything else.
-- **Built-in word list and review.** Every lookup goes into a local SQLite word list. Review uses
-  flash cards with growing intervals (1 → 2 → 4 → 7 → 15 → 30 → 60 days). Search, delete and
-  export to CSV (opens in Excel, and imports into Anki).
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
-- **Optional library check-in with goals and a to-do list.** One menu item checks you in or out,
-  whichever applies. Checking in opens **Goals & to-dos**: long-term goals (deadline from a
-  calendar, countdown, tasks done and time spent) and today's tasks (plan them for any day, attach
-  them to a goal, time them with a stopwatch). Finishing a task or a goal pops up a small
-  celebration with how many days it took since you wrote it down. Checking out
-  tells you how long you stayed and how many tasks you finished. The library log has today / this
-  week / your streak, a calendar heatmap, and the new words and tasks done each day. Off by default.
+- **A card that stays put.** The card sits quietly in a corner. Click it to hear the word again,
+  drag it anywhere, and right-click it for everything else.
+
+### Features (each can be turned off in Settings)
+
+- **Word list and review.** Every lookup goes into a local SQLite word list. Review uses
+  flash cards with growing intervals (1 → 2 → 4 → 7 → 15 → 30 → 60 days). Search, delete and
+  export to CSV (opens in Excel, and imports into Anki).
+- **Goals & to-dos.** Long-term goals (deadline from a calendar, countdown, tasks done and time
+  spent) and tasks you can plan for any day, attach to a goal and time with a stopwatch.
+  Finishing a task or a goal pops up a small celebration with how many days it took since you
+  wrote it down.
+- **Library check-in.** One menu item checks you in or out, whichever applies. Checking in opens
+  your goals and to-dos. Checking out tells you how long you stayed and how many tasks you
+  finished. The library log has today / this week / your streak, a calendar heatmap, and the new
+  words and tasks done each day. Off by default.
 - **A journal to look back on.** One page per day with the tasks you finished and how long each
   took, the new words you looked up (click to hear them), your library time, and a reflection you
   write yourself. New features plug in as extra sections.
@@ -51,8 +58,8 @@ Requirements: **Windows 10/11** and **Python 3.10+** ([python.org](https://www.p
 Tested with Python 3.12.
 
 ```bat
-git clone https://github.com/jia-jing-zhang-dev/Real-Time-Translate-MCP-.git
-cd Real-Time-Translate-MCP-
+git clone https://github.com/jia-jing-zhang-dev/Popper.git
+cd Popper
 setup.bat
 ```
 
@@ -62,15 +69,15 @@ or turn on **Start with Windows** in Settings.
 
 ### Standalone app (no Python needed)
 
-To give Word Popper to someone who doesn't have Python, build a self-contained folder:
+To give Popper to someone who doesn't have Python, build a self-contained folder:
 
 ```bat
 .venv\Scripts\python -m pip install pyinstaller
 .venv\Scripts\python packaging\build.py
 ```
 
-This creates `dist\WordPopper-windows.zip` (about 21 MB) with `WordPopper.exe` and a bilingual
-how-to. The packaged app keeps its settings and word list in `%APPDATA%\Word Popper`. It isn't
+This creates `dist\Popper-windows.zip` (about 21 MB) with `Popper.exe` and a bilingual
+how-to. The packaged app keeps its settings and word list in `%APPDATA%\Word Popper` (its old name). It isn't
 code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 (**More info → Run anyway**).
 
@@ -137,7 +144,7 @@ Set the `WORD_POPPER_HOME` environment variable to keep them somewhere else.
 
 ## Privacy
 
-Word Popper has no account, no server and no telemetry. To do its job, it sends the text you
+Popper has no account, no server and no telemetry. To do its job, it sends the text you
 look up to these services:
 
 - **Google Translate** (public web endpoint) for translation, dictionary senses and romanization
@@ -153,12 +160,12 @@ a local file.
   layouts when you have more than one installed. Either turn that off (**Settings → Time &
   language → Typing → Advanced keyboard settings → Input language hot keys**) or set *Look up a
   word by* to *Copying (Ctrl+C)*.
-- **No sound.** Edge voices need an internet connection. Offline, Word Popper falls back to the
+- **No sound.** Edge voices need an internet connection. Offline, Popper falls back to the
   built-in Windows voice.
 - **"No text selected".** Some apps (games, some terminals) don't support copying. Use
   Win+Shift+S instead.
 - **Nothing happens in an app running as administrator.** Windows blocks keystrokes sent from a
-  normal app to an elevated one, so Word Popper can't copy the selection there. Run Word Popper as
+  normal app to an elevated one, so Popper can't copy the selection there. Run Popper as
   administrator too, or use a screenshot.
 
 ## Project layout
@@ -176,13 +183,21 @@ languages.py        supported languages, voices, OCR tags
 i18n.py             interface strings
 ```
 
+## Adding a feature
+
+Everything beyond word lookup is a feature in [`features/`](features): a small class that can add
+right-click menu items, a window, a timer, and a section to each journal page. To add one, copy
+[`features/_template.py`](features/_template.py), add its strings in both languages to
+[`i18n.py`](i18n.py), and list it in [`features/__init__.py`](features/__init__.py). It then shows
+up in the menu, in Settings → Features, and in the journal. [`CLAUDE.md`](CLAUDE.md) has the details.
+
 ## How the demo was made
 
 The demo is recorded for real, with no mock-ups. [`demo/record.py`](demo/record.py) opens
 [`demo/book.html`](demo/book.html) full-screen (public-domain excerpts from *Pride and Prejudice*
-and *Don Quijote*), runs Word Popper with a throw-away data folder, and drives the mouse and
+and *Don Quijote*), runs Popper with a throw-away data folder, and drives the mouse and
 keyboard while ffmpeg records the screen. [`demo/edit.py`](demo/edit.py) adds the captions and
-key badges and a voice-over, and rebuilds the word audio from Word Popper's own playback log. Where a
+key badges and a voice-over, and rebuilds the word audio from Popper's own playback log. Where a
 narration line needs more room, the picture holds still so the narrator never talks over a word. To re-record:
 
 ```bat

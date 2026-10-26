@@ -305,7 +305,7 @@ class VocabWindow:
 
     def export(self):
         path = filedialog.asksaveasfilename(parent=self.top, defaultextension=".csv",
-                                            initialfile="word-popper.csv",
+                                            initialfile="popper-words.csv",
                                             filetypes=[("CSV", "*.csv")])
         if path:
             self.app.vocab.export_csv(path, self.app.pron_text)

@@ -1,8 +1,8 @@
-"""Record the Word Popper demo.
+"""Record the Popper demo.
 
-Opens demo/book.html full-screen in Edge, runs Word Popper with a throw-away data folder, and
+Opens demo/book.html full-screen in Edge, runs Popper with a throw-away data folder, and
 drives both with real mouse/keyboard input while ffmpeg captures the screen. Captions and key
-presses are logged to _work/marks.json; Word Popper logs when each word is spoken
+presses are logged to _work/marks.json; Popper logs when each word is spoken
 (_work/events.tsv). edit.py turns all of it into the final video.
 
 Don't touch the mouse or keyboard while it runs (about two minutes).
@@ -188,7 +188,7 @@ def look_up(box, phrase=False, wait=5.0):
 
 def card_center():
     """A point inside the card. Near the bottom, which stays put when the card expands or collapses."""
-    x1, y1, x2, y2 = window_rect("Word Popper")
+    x1, y1, x2, y2 = window_rect("Popper")
     return (x1 + x2) // 2, y2 - 22
 
 
@@ -225,7 +225,7 @@ def set_snip_mode(mode):
     click((x1 + x2) // 2, (y1 + y2) // 2)
     time.sleep(0.6)
     # The choice is only remembered after a finished snip (Esc discards it), so snip a bit of
-    # blank margin. Word Popper isn't running yet, so nothing reacts to it.
+    # blank margin. Popper isn't running yet, so nothing reacts to it.
     drag(120, 700, 320, 820)
     time.sleep(6)  # let the "snip copied" toast go away before recording starts
 
@@ -284,7 +284,7 @@ class Recorder:
 
 
 def stop_user_instance():
-    """The real Word Popper (single instance) has to step aside while the demo copy runs."""
+    """The real Popper (single instance) has to step aside while the demo copy runs."""
     out = subprocess.run(["powershell", "-NoProfile", "-Command",
                           "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "
                           "'*word_popper.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId "
@@ -294,7 +294,7 @@ def stop_user_instance():
 
 def restart_user_instance():
     link = os.path.join(os.environ["APPDATA"], r"Microsoft\Windows\Start Menu\Programs\Startup",
-                        "Word Popper.lnk")
+                        "Popper.lnk")
     if os.path.exists(link):
         os.startfile(link)
     else:
@@ -355,7 +355,7 @@ def main():
             caption("12 languages: choose what you're learning and what you speak", 5.0)
             open_card_menu("Settings")
             time.sleep(3.8)
-            close_window("Word Popper Settings")
+            close_window("Popper Settings")
             time.sleep(0.4)
             rest()  # give the book the keyboard focus back
             time.sleep(0.6)

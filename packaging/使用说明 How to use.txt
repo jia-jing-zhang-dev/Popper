@@ -1,4 +1,4 @@
-Word Popper 使用说明
+泡泡 Popper 使用说明
 ====================
 
 读英文（或其他外语）时，遇到不认识的词：选中它，按一下 Ctrl+Shift，
@@ -6,10 +6,10 @@ Word Popper 使用说明
 
 【第一次打开】
 1. 把整个压缩包解压到一个固定的位置（比如“文档”文件夹），不要直接在压缩包里运行。
-2. 双击 WordPopper.exe。
+2. 双击 Popper.exe。
 3. 如果 Windows 弹出“Windows 已保护你的电脑”：点“更多信息”→“仍要运行”。
    （这个软件还没有购买代码签名证书，所以 Windows 不认识它，不是病毒。）
-4. 屏幕右下角会出现一个深色小卡片“🔊 Word Popper”，就说明在运行了。
+4. 屏幕右下角会出现一个深色小卡片“🔊 泡泡”，就说明在运行了。
 
 【怎么查词】
 - 选中单词 / 短语 / 句子 → 按一下 Ctrl+Shift（两个键一起按下再松开）
@@ -51,18 +51,18 @@ Word Popper 使用说明
 - 你的设置和词库保存在 %APPDATA%\Word Popper 里，删掉软件文件夹不会丢。
 
 
-Word Popper — How to use
-========================
+Popper — How to use
+===================
 
 When you hit a word you don't know: select it and tap Ctrl+Shift. A small card in the corner
 shows the translation and pronunciation and reads it aloud. Every word is saved for review.
 
 First run
 1. Unzip the whole folder somewhere permanent (e.g. Documents). Don't run it from inside the zip.
-2. Double-click WordPopper.exe.
+2. Double-click Popper.exe.
 3. If Windows says "Windows protected your PC": click "More info" → "Run anyway".
    (The app isn't code-signed yet, so Windows doesn't recognise it.)
-4. A small dark card "🔊 Word Popper" appears in the bottom-right corner: it's running.
+4. A small dark card "🔊 Popper" appears in the bottom-right corner: it's running.
 
 Looking words up
 - Select a word, phrase or sentence → tap Ctrl+Shift (press both, release)

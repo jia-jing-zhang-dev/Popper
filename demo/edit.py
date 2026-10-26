@@ -1,7 +1,7 @@
 """Turn the raw recordings from record.py into docs/demo.mp4 and docs/demo.gif.
 
 Crops each segment to 16:9, burns in captions and key-press badges, adds a voice-over, rebuilds
-the word audio from Word Popper's playback log (so every word is heard exactly when it was
+the word audio from Popper's playback log (so every word is heard exactly when it was
 spoken), and adds a title and end card. Where a narration line needs more time than the gap
 before the next spoken word, the picture holds still until the narrator is done, so the
 voice-over never talks over a word.
@@ -23,19 +23,19 @@ WORK = os.path.join(HERE, "_work")
 DOCS = os.path.join(ROOT, "docs")
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 sys.path.insert(0, ROOT)
-from speech import Speaker  # noqa: E402  (reuses Word Popper's Edge TTS cache)
+from speech import Speaker  # noqa: E402  (reuses Popper's Edge TTS cache)
 
 W, H, FPS = 1920, 1080, 30
 CROP = "crop=2560:1440:0:0"   # drop the bottom rows where the taskbar can flash in
 SEGMENTS = ["1_english", "2_spanish", "3_review"]
-REPO = "github.com/jia-jing-zhang-dev/Real-Time-Translate-MCP-"
+REPO = "github.com/jia-jing-zhang-dev/Popper"
 
 NARRATOR = "en-US-AndrewNeural"   # a different voice from the words being looked up
 NARRATOR_RATE = "+0%"
 GAP = 0.25                        # breathing room between narration and a spoken word
 
 # Voice-over. Each line is anchored to a caption (by its text) or to the end of a spoken word.
-TITLE_LINE = "Meet Word Popper. It lets you learn new words inside whatever you're already reading."
+TITLE_LINE = "Meet Popper. It lets you learn new words inside whatever you're already reading."
 END_LINE = "No dictionary tab. No flash-card deck to build. Just keep reading."
 NARRATION = {
     "1_english": [
@@ -47,7 +47,7 @@ NARRATION = {
         (("caption", "Phrases work too"), "Phrases work too."),
         (("caption", "Click the card"), "Click the card to hear it again."),
         (("caption", "Can't select it"), "Text inside an image? Snip it with Windows Shift S, "
-                                         "and Word Popper reads it right on your computer."),
+                                         "and Popper reads it right on your computer."),
         (("after", "synonymously"), "No browser tab, no copy and paste. I never leave the page."),
     ],
     "2_spanish": [
@@ -173,7 +173,7 @@ class Timeline:
 def plan_narration(name, seg_marks, words, length):
     """Place each narration line and add holds so it never overlaps a spoken word.
 
-    `words` are (recording time, duration) of Word Popper's own playback.
+    `words` are (recording time, duration) of Popper's own playback.
     Returns (timeline, [(video time, mp3 path)]).
     """
     tl = Timeline()
@@ -324,7 +324,7 @@ def main():
             events.append((float(t), path, word))
 
     title = card("title", [
-        ("Word Popper", font("georgia.ttf", 112), 150, INK),
+        ("Popper", font("georgia.ttf", 112), 150, INK),
         ("Learn words inside the book you're already reading.", font("georgiai.ttf", 46), 110, INK),
         ("select  ·  tap Ctrl+Shift  ·  hear it  ·  keep reading", font("segoeui.ttf", 32), 60, MUTED),
     ], TITLE_LINE, 4.0)
