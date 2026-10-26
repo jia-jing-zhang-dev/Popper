@@ -26,9 +26,10 @@ from languages import LANGUAGES, label, normalize, voice_for
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
 from settings_window import SettingsWindow
 from speech import Speaker
-from journal import Journal, JournalWindow
-from library import LibraryLog, LibraryWindow, TodoList, TodoWindow, fmt_duration, fmt_long
-from vocab import ReviewWindow, Vocab, VocabWindow
+from features import FEATURES
+from journal import Journal
+from library import LibraryLog, TodoList
+from vocab import Vocab
 
 FROZEN = getattr(sys, "frozen", False)  # running as the packaged WordPopper.exe
 SCRIPT_PATH = sys.executable if FROZEN else os.path.abspath(__file__)
@@ -100,7 +101,7 @@ def load_settings():
                 "learn": "es" if native == "en" else "en",
                 "native": native, "voices": {}, "speed": "-10%", "text_size": "normal",
                 "trigger": "ctrl_shift",
-                "screenshots": True, "listening": True, "library": False, "x": None, "bottom": None}
+                "screenshots": True, "listening": True, "features": {}, "x": None, "bottom": None}
     try:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
             saved = json.load(f)
@@ -108,6 +109,8 @@ def load_settings():
         saved = {}
     if "accent" in saved:  # settings from the first version
         settings["voices"]["en"] = "UK" if saved.pop("accent") == "英音" else "US"
+    if "library" in saved:  # before features: the library check-in had its own switch
+        saved.setdefault("features", {}).setdefault("library", saved.pop("library"))
     settings.update(saved)
     for key in ("learn", "native"):
         if settings[key] not in LANGUAGES:
@@ -173,7 +176,7 @@ class App:
         self.hotkey = {"armed_at": None, "dirty": False}
         self.collapse_job = None
         self.drag = None
-        self.review_win = self.vocab_win = self.settings_win = self.library_win = self.todo_win = self.journal_win = None
+        self.settings_win = None
 
         root = self.root = tk.Tk()
         root.title("Word Popper")
@@ -217,7 +220,10 @@ class App:
         root.after(300, self.poll_clipboard)
         root.after(30, self.poll_hotkey)
         root.after(100, self.poll_ui_queue)
-        root.after(1000, self.library_tick)
+
+        self.features = [cls(self) for cls in FEATURES]
+        for feature in self.features:
+            feature.start()
 
     # ---------- layout
 
@@ -312,28 +318,12 @@ class App:
 
     def show_menu(self, e):
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label=t("menu_review", n=self.vocab.due_count()), command=self.open_review)
-        menu.add_command(label=t("menu_vocab", n=self.vocab.count()), command=self.open_vocab)
-        recent = tk.Menu(menu, tearoff=0)
-        items = self.vocab.recent()
-        for item in items:
-            recent.add_command(label=f"{item['word']}   {item['trans'][:20]}",
-                               command=lambda it=item: self.recall(it))
-        if not items:
-            recent.add_command(label=t("menu_none"), state="disabled")
-        menu.add_cascade(label=t("menu_recent"), menu=recent)
-        menu.add_command(label=t("menu_journal"), command=self.open_journal)
-        if self.settings["library"]:
-            menu.add_separator()
-            session = self.library.current()
-            label_ = (t("menu_lib_in_now", time=fmt_duration(time.time() - session["start"])) if session
-                      else t("menu_lib"))
-            menu.add_command(label=label_, command=self.toggle_library)
-            done, total = self.todos.progress()
-            menu.add_command(label=t("menu_todo", done=done, total=total) if total else t("todo_title"),
-                             command=self.open_todo)
-            menu.add_command(label=t("menu_lib_stats"), command=self.open_library)
-        menu.add_separator()
+        for feature in self.features:
+            if feature.on:
+                before = menu.index("end")
+                feature.menu_items(menu)
+                if menu.index("end") != before:
+                    menu.add_separator()
         menu.add_command(label=f"{t('menu_settings')}   ({LANGUAGES[self.settings['learn']][1]} → "
                                f"{LANGUAGES[self.settings['native']][1]})", command=self.open_settings)
         menu.add_command(label=t("menu_resume") if not self.settings["listening"] else t("menu_pause"),
@@ -350,68 +340,17 @@ class App:
             return True
         return False
 
-    def open_review(self):
-        if self._reuse(self.review_win):
-            return
-        items, note = self.vocab.due(), ""
-        if not items:
-            items, note = self.vocab.random_pick(), t("review_random")
-        if not items:
-            messagebox.showinfo(t("review_title"), t("review_empty"), parent=self.root)
-            return
-        self.review_win = ReviewWindow(self, items, note)
+    # ---------- features
 
-    def open_vocab(self):
-        if self._reuse(self.vocab_win):
-            self.vocab_win.refresh()
-            return
-        self.vocab_win = VocabWindow(self)
+    def feature(self, feature_id):
+        return next(f for f in self.features if f.id == feature_id)
 
-    # ---------- library check-in
+    def feature_on(self, feature_id):
+        default = self.feature(feature_id).default_on
+        return self.settings["features"].get(feature_id, default)
 
-    def toggle_library(self):
-        """One button: checks in (and opens today's to-dos) or checks out, whichever applies."""
-        if self.library.current():
-            seconds = self.library.check_out()
-            done, total = self.todos.progress()
-            message = t("flash_lib_out", time=fmt_long(seconds))
-            if total:
-                message += t("flash_lib_tasks", done=done, total=total)
-            self.flash(message, ms=4000)
-        else:
-            self.library.check_in()
-            self.flash(t("flash_lib_in", time=time.strftime("%H:%M")), ms=3000)
-            self.open_todo()
-        if self.library_win and self.library_win.top.winfo_exists():
-            self.library_win.refresh()
-
-    def open_journal(self):
-        if self._reuse(self.journal_win):
-            self.journal_win.refresh()
-            return
-        self.journal_win = JournalWindow(self)
-
-    def open_todo(self):
-        if self._reuse(self.todo_win):
-            self.todo_win.refresh()
-            return
-        self.todo_win = TodoWindow(self)
-
-    def open_library(self):
-        if self._reuse(self.library_win):
-            self.library_win.refresh()
-            return
-        self.library_win = LibraryWindow(self)
-
-    def library_tick(self):
-        """End sessions nobody checked out of."""
-        try:
-            if self.library.close_stale():
-                messagebox.showinfo(t("lib_title"), t("lib_auto_closed"), parent=self.root)
-                if self.library_win and self.library_win.top.winfo_exists():
-                    self.library_win.refresh()
-        finally:
-            self.root.after(30000, self.library_tick)
+    def journal_sections(self):
+        return [make for f in self.features if f.on for make in f.journal_sections()]
 
     def open_settings(self):
         if not self._reuse(self.settings_win):

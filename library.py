@@ -745,7 +745,7 @@ class LibraryWindow:
         top.focus_force()
 
     def toggle(self):
-        self.app.toggle_library()
+        self.app.feature("library").toggle()
 
     def tick(self):
         if not self.top.winfo_exists():

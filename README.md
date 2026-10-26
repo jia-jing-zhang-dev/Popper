@@ -130,7 +130,7 @@ For screenshot OCR in a language other than English, Windows needs that language
 | Look up a word by | *Ctrl+Shift tap* (default) or *Copying (Ctrl+C)* |
 | Translate screenshots | Turn Win+Shift+S OCR on or off |
 | Start with Windows | Adds or removes a shortcut in your Startup folder |
-| Library check-in | Shows check-in / check-out and the library log in the menu. A session you forget to end stops after 8 hours |
+| Features | Turn word review, goals & to-dos, library check-in and the journal on or off. A library session you forget to end stops after 8 hours |
 
 Settings are saved in `settings.json` and your words in `vocab.db`, both next to the script.
 Set the `WORD_POPPER_HOME` environment variable to keep them somewhere else.
@@ -169,7 +169,8 @@ lookup.py           translation (Google), dictionary (Youdao), OCR (Windows.Medi
 speech.py           Edge TTS with an mp3 cache; SAPI fallback
 vocab.py            SQLite word list, review window, word-list window
 library.py          library check-in sessions, streaks, goals and to-dos, and their windows
-journal.py          day-by-day journal built from sections, with written reflections
+journal.py          day-by-day journal built from each feature's sections, with written reflections
+features/           one module per feature (review, todos, library, journal); copy _template.py to add one
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags
 i18n.py             interface strings
