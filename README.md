@@ -35,7 +35,8 @@ screenshot OCR, settings, and spaced-repetition review.
 - **Optional library check-in with goals and a to-do list.** One menu item checks you in or out,
   whichever applies. Checking in opens **Goals & to-dos**: long-term goals (deadline from a
   calendar, countdown, tasks done and time spent) and today's tasks (plan them for any day, attach
-  them to a goal, time them with a stopwatch). Checking out
+  them to a goal, time them with a stopwatch). Finishing a task or a goal pops up a small
+  celebration with how many days it took since you wrote it down. Checking out
   tells you how long you stayed and how many tasks you finished. The library log has today / this
   week / your streak, a calendar heatmap, and the new words and tasks done each day. Off by default.
 - **A journal to look back on.** One page per day with the tasks you finished and how long each

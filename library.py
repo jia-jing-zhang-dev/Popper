@@ -354,6 +354,44 @@ class DatePicker:
                 day += dt.timedelta(days=1)
 
 
+class Celebration:
+    """A small card that says well done, and how many days it took since you wrote the thing down."""
+
+    def __init__(self, app, parent, title, created, done_at, extra, big=False):
+        s = app.scale
+        top = self.top = tk.Toplevel(parent)
+        top.overrideredirect(True)
+        top.attributes("-topmost", True)
+        top.configure(bg=PANEL, highlightthickness=2, highlightbackground=GOOD)
+        body = tk.Frame(top, bg=PANEL, padx=int(36 * s), pady=int(22 * s))
+        body.pack()
+
+        tk.Label(body, text="✦  ✦  ✦", bg=PANEL, fg=GOOD, font=app.font("Segoe UI Symbol", 14)).pack()
+        tk.Label(body, text=t("cheer_goal_done" if big else "cheer_done"), bg=PANEL, fg=FG,
+                 font=app.font("Microsoft YaHei UI", 22 if big else 18)).pack(pady=(4, 2))
+        tk.Label(body, text=t("cheer_title", title=title), bg=PANEL, fg=FG, wraplength=int(360 * s),
+                 font=app.font("Microsoft YaHei UI", 13)).pack()
+        days = (dt.date.fromtimestamp(done_at) - dt.date.fromtimestamp(created)).days if created else None
+        if days is not None:
+            line = t("cheer_same_day") if days == 0 else t("cheer_one_day") if days == 1 else t("cheer_days", n=days)
+            tk.Label(body, text=line, bg=PANEL, fg=GOOD, font=app.font("Microsoft YaHei UI", 12)).pack(pady=(12, 0))
+        for text in extra:
+            tk.Label(body, text=text, bg=PANEL, fg=FG_DIM, font=app.font("Microsoft YaHei UI", 10)).pack(pady=(4, 0))
+        ok = tk.Button(body, text=t("cheer_ok"), command=top.destroy, bg=GOOD, fg=BG, activebackground=GOOD,
+                       activeforeground=BG, relief="flat", bd=0, padx=int(28 * s), pady=int(6 * s), cursor="hand2",
+                       font=app.font("Microsoft YaHei UI", 12))
+        ok.pack(pady=(18, 0))
+        for key in ("<Return>", "<space>", "<Escape>"):
+            top.bind(key, lambda e: top.destroy())
+
+        top.update_idletasks()  # center it over the window it came from
+        x = parent.winfo_rootx() + (parent.winfo_width() - top.winfo_reqwidth()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - top.winfo_reqheight()) // 3
+        top.geometry(f"+{max(0, x)}+{max(0, y)}")
+        top.focus_force()
+        ok.focus_set()
+
+
 class TodoWindow:
     """Two columns: long-term goals | today (plus what's coming up). Finished tasks go to the journal.
 
@@ -508,6 +546,22 @@ class TodoWindow:
         fn(*args)
         self.refresh()
 
+    def finish_task(self, todo_id):
+        self.app.todos.complete(todo_id)
+        self.refresh()
+        row = self.app.todos.db.execute("SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
+        Celebration(self.app, self.top, row["text"], row["created"], row["done_at"],
+                    [t("cheer_focus", time=fmt_clock(row["spent"]))] if row["spent"] and row["spent"] >= 60 else [])
+
+    def toggle_goal(self, goal):
+        finishing = not goal["done"]
+        self.act(self.app.todos.toggle_goal, goal["id"])
+        if finishing:
+            extra = [t("cheer_goal_tasks", n=goal["tasks_done"])] if goal["tasks_done"] else []
+            if goal["time_spent"] >= 60:
+                extra.append(t("cheer_goal_time", time=fmt_long(goal["time_spent"])))
+            Celebration(self.app, self.top, goal["title"], goal["created"], time.time(), extra, big=True)
+
     def pick_deadline(self):
         DatePicker(self.app, self.deadline_btn, self.set_deadline, self.deadline)
 
@@ -589,7 +643,7 @@ class TodoWindow:
                 t("goal_tasks_done", n=g["tasks_done"]) if g["tasks_done"] else "",
                 t("goal_time", time=fmt_long(g["time_spent"])) if g["time_spent"] >= 60 else ""]))
             self.row(self.goal_rows, g["done"], g["title"], note,
-                     lambda i=g["id"]: self.act(todos.toggle_goal, i), lambda i=g["id"]: self.act(todos.delete_goal, i))
+                     lambda g=g: self.toggle_goal(g), lambda i=g["id"]: self.act(todos.delete_goal, i))
 
         if self.task_goal not in {g["id"] for g in todos.open_goals()}:
             self.task_goal = None
@@ -607,7 +661,7 @@ class TodoWindow:
             late = (today - dt.date.fromisoformat(r["due"])).days if r["due"] else 0
             note = " · ".join(filter(None, [t("task_late", n=late) if late > 0 else "", r["goal"] or ""]))
             self.row(self.task_rows, False, r["text"], note,
-                     lambda i=r["id"]: self.act(todos.complete, i), lambda i=r["id"]: self.act(todos.delete, i),
+                     lambda i=r["id"]: self.finish_task(i), lambda i=r["id"]: self.act(todos.delete, i),
                      note_fg=LATE if late > 0 else ACCENT,
                      timer=(r, lambda i=r["id"]: self.act(todos.start, i), lambda i=r["id"]: self.act(todos.pause, i)))
         later = todos.upcoming()
@@ -617,7 +671,7 @@ class TodoWindow:
             for r in later:
                 note = " · ".join(filter(None, [day_label(dt.date.fromisoformat(r["due"])), r["goal"] or ""]))
                 self.row(self.task_rows, False, r["text"], note,
-                         lambda i=r["id"]: self.act(todos.complete, i), lambda i=r["id"]: self.act(todos.delete, i),
+                         lambda i=r["id"]: self.finish_task(i), lambda i=r["id"]: self.act(todos.delete, i),
                          note_fg=FG_DIM,
                          timer=(r, lambda i=r["id"]: self.act(todos.start, i), lambda i=r["id"]: self.act(todos.pause, i)))
 
