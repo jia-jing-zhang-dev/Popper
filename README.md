@@ -33,8 +33,10 @@ screenshot OCR, settings, and spaced-repetition review.
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
 - **Optional library check-in with goals and a to-do list.** One menu item checks you in or out,
-  whichever applies. Checking in opens **Goals & to-dos**: long-term goals with an optional deadline
-  and countdown, and today's tasks, which you can attach to a goal (unfinished tasks carry over). Checking out
+  whichever applies. Checking in opens **Goals & to-dos**, three columns: long-term goals (deadline
+  from a calendar, countdown, tasks done and time spent), today's tasks (plan them for any day,
+  attach them to a goal, time them with a stopwatch), and an archive of finished tasks by day with
+  how long each took. Checking out
   tells you how long you stayed and how many tasks you finished. The library log has today / this
   week / your streak, a calendar heatmap, and the new words and tasks done each day. Off by default.
 - **Stays out of your way.** A plain Ctrl+C never triggers it, your clipboard is restored after a

@@ -18,6 +18,7 @@ FG = "#f2f4f8"
 FG_DIM = "#9aa3b5"
 ACCENT = "#7cc4ff"
 GOOD = "#46d07e"
+LATE = "#e57373"
 # heatmap: no time, < 30 min, < 1 h, < 2 h, 2 h+
 HEAT = ["#2a3040", "#1d4a3a", "#23744f", "#2fa364", "#46d07e"]
 
@@ -110,19 +111,21 @@ def start_of_today():
     return dt.datetime.combine(dt.date.today(), dt.time()).timestamp()
 
 
-def parse_deadline(text, today=None):
-    """'2026-12-20', '12-20' or '12/20' (the next one coming) -> date; '' -> None; ValueError if unreadable."""
-    text = text.strip().replace("/", "-").replace(".", "-")
-    if not text:
-        return None
-    today = today or dt.date.today()
-    parts = [int(p) for p in text.split("-")]
-    if len(parts) == 3:
-        return dt.date(*parts)
-    if len(parts) == 2:
-        day = dt.date(today.year, *parts)
-        return day if day >= today else dt.date(today.year + 1, *parts)
-    raise ValueError(text)
+def fmt_clock(seconds):
+    """25:13, or 1:02:03 once past an hour."""
+    seconds = int(seconds)
+    h, rest = divmod(seconds, 3600)
+    m, s = divmod(rest, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def day_label(day):
+    today = dt.date.today()
+    if day == today:
+        return t("date_today")
+    if day == today + dt.timedelta(days=1):
+        return t("date_tomorrow")
+    return t("date_short", m=day.month, d=day.day, wd=t("lib_weekdays")[day.weekday()])
 
 
 def countdown(deadline):
@@ -133,10 +136,11 @@ def countdown(deadline):
 
 
 class TodoList:
-    """Long-term goals and today's to-dos.
+    """Long-term goals, dated tasks with timers, and the archive of finished tasks.
 
-    Today's list is everything not done yet (unfinished tasks carry over) plus what was done today.
-    A task can belong to a goal; a goal's progress is the number of its tasks done.
+    A task is planned for a day (today by default). Today's list holds unfinished tasks planned for
+    today or earlier; later ones wait under "Coming up". Each task has a stopwatch (one runs at a
+    time); ticking a task off stops it, and the task moves to the archive with the time it took.
     """
 
     def __init__(self, db):
@@ -158,34 +162,85 @@ class TodoList:
                 created  REAL,
                 done_at  REAL
             )""")
-        if "goal_id" not in {r["name"] for r in self.db.execute("PRAGMA table_info(todos)")}:
-            self.db.execute("ALTER TABLE todos ADD COLUMN goal_id INTEGER")
+        columns = {r["name"] for r in self.db.execute("PRAGMA table_info(todos)")}
+        for name, kind in (("goal_id", "INTEGER"), ("due", "TEXT"), ("spent", "REAL DEFAULT 0"),
+                           ("started", "REAL")):
+            if name not in columns:  # added after the first version of the to-do list
+                self.db.execute(f"ALTER TABLE todos ADD COLUMN {name} {kind}")
         self.db.commit()
 
-    # ---------- to-dos
+    _SELECT = ("SELECT todos.*, goals.title AS goal FROM todos "
+               "LEFT JOIN goals ON goals.id = todos.goal_id ")
+
+    # ---------- tasks
 
     def today(self):
-        return self.db.execute("""
-            SELECT todos.*, goals.title AS goal FROM todos LEFT JOIN goals ON goals.id = todos.goal_id
-            WHERE todos.done=0 OR todos.done_at >= ? ORDER BY todos.done, todos.created""",
-                               (start_of_today(),)).fetchall()
+        """Unfinished tasks planned for today or earlier (or never dated), oldest plan first."""
+        return self.db.execute(self._SELECT + "WHERE todos.done=0 AND COALESCE(todos.due, '') <= ? "
+                               "ORDER BY COALESCE(todos.due, ''), todos.created",
+                               (dt.date.today().isoformat(),)).fetchall()
+
+    def upcoming(self):
+        return self.db.execute(self._SELECT + "WHERE todos.done=0 AND todos.due > ? ORDER BY todos.due, todos.created",
+                               (dt.date.today().isoformat(),)).fetchall()
+
+    def done_today(self):
+        return self.db.execute("SELECT COUNT(*) FROM todos WHERE done=1 AND done_at >= ?",
+                               (start_of_today(),)).fetchone()[0]
 
     def progress(self):
-        rows = self.today()
-        return sum(r["done"] for r in rows), len(rows)
+        """(finished today, today's total) — today's total counts what's left plus what's done."""
+        done = self.done_today()
+        return done, done + len(self.today())
 
-    def add(self, text, goal_id=None):
-        self.db.execute("INSERT INTO todos (text, created, goal_id) VALUES (?, ?, ?)", (text, time.time(), goal_id))
+    def add(self, text, goal_id=None, due=None):
+        due = (due or dt.date.today()).isoformat()
+        self.db.execute("INSERT INTO todos (text, created, goal_id, due, spent) VALUES (?, ?, ?, ?, 0)",
+                        (text, time.time(), goal_id, due))
         self.db.commit()
 
-    def toggle(self, todo_id):
-        self.db.execute("UPDATE todos SET done = 1 - done, done_at = CASE WHEN done = 0 THEN ? END WHERE id=?",
-                        (time.time(), todo_id))
+    @staticmethod
+    def elapsed(row):
+        return (row["spent"] or 0) + (time.time() - row["started"] if row["started"] else 0)
+
+    def running(self):
+        return self.db.execute("SELECT * FROM todos WHERE started IS NOT NULL").fetchone()
+
+    def start(self, todo_id):
+        """Start this task's stopwatch, pausing whichever one was running."""
+        for row in self.db.execute("SELECT id FROM todos WHERE started IS NOT NULL AND id != ?", (todo_id,)):
+            self.pause(row["id"])
+        self.db.execute("UPDATE todos SET started=? WHERE id=? AND started IS NULL", (time.time(), todo_id))
+        self.db.commit()
+
+    def pause(self, todo_id):
+        self.db.execute("UPDATE todos SET spent = COALESCE(spent, 0) + (? - started), started = NULL "
+                        "WHERE id=? AND started IS NOT NULL", (time.time(), todo_id))
+        self.db.commit()
+
+    def complete(self, todo_id):
+        self.pause(todo_id)
+        self.db.execute("UPDATE todos SET done=1, done_at=? WHERE id=?", (time.time(), todo_id))
+        self.db.commit()
+
+    def reopen(self, todo_id):
+        """Undo a completion: back to today's list (the time already spent is kept)."""
+        self.db.execute("UPDATE todos SET done=0, done_at=NULL, due=MIN(COALESCE(due, ?), ?) WHERE id=?",
+                        (dt.date.today().isoformat(), dt.date.today().isoformat(), todo_id))
         self.db.commit()
 
     def delete(self, todo_id):
         self.db.execute("DELETE FROM todos WHERE id=?", (todo_id,))
         self.db.commit()
+
+    def archive(self, days=60):
+        """Finished tasks of the last `days` days: [(date, total seconds, [rows])], newest first."""
+        since = start_of_today() - (days - 1) * 86400
+        groups = {}
+        for row in self.db.execute(self._SELECT + "WHERE todos.done=1 AND todos.done_at >= ? "
+                                   "ORDER BY todos.done_at DESC", (since,)):
+            groups.setdefault(dt.date.fromtimestamp(row["done_at"]), []).append(row)
+        return [(day, sum(r["spent"] or 0 for r in rows), rows) for day, rows in groups.items()]
 
     def done_by_day(self, since):
         counts = {}
@@ -199,8 +254,9 @@ class TodoList:
     def goals(self):
         """Open goals (nearest deadline first, then those without one) plus goals finished today."""
         return self.db.execute("""
-            SELECT goals.*, (SELECT COUNT(*) FROM todos WHERE todos.goal_id = goals.id AND todos.done = 1)
-                   AS tasks_done
+            SELECT goals.*,
+                   (SELECT COUNT(*) FROM todos WHERE todos.goal_id = goals.id AND todos.done = 1) AS tasks_done,
+                   (SELECT COALESCE(SUM(spent), 0) FROM todos WHERE todos.goal_id = goals.id) AS time_spent
             FROM goals WHERE done=0 OR done_at >= ?
             ORDER BY done, deadline IS NULL, deadline, created""", (start_of_today(),)).fetchall()
 
@@ -224,10 +280,93 @@ class TodoList:
         self.db.commit()
 
 
-class TodoWindow:
-    """Long-term goals on the left, today's to-dos on the right. Opens when you check in at the library.
+class DatePicker:
+    """A small month calendar under `anchor`; calls on_pick(date) or on_pick(None) for "no date"."""
 
-    Each column has its input at the top and its list below, so adding or ticking things never moves an
+    def __init__(self, app, anchor, on_pick, selected=None, allow_clear=True):
+        self.app, self.on_pick = app, on_pick
+        self.selected = selected
+        self.month = (selected or dt.date.today()).replace(day=1)
+        top = self.top = tk.Toplevel(anchor)
+        top.overrideredirect(True)
+        top.attributes("-topmost", True)
+        top.configure(bg=PANEL, padx=10, pady=8)
+        top.geometry(f"+{anchor.winfo_rootx()}+{anchor.winfo_rooty() + anchor.winfo_height() + 2}")
+
+        bar = tk.Frame(top, bg=PANEL)
+        bar.pack(fill="x")
+        nav = dict(bg=PANEL, fg=FG, cursor="hand2", font=app.font("Segoe UI", 11))
+        prev = tk.Label(bar, text="‹", **nav)
+        prev.pack(side="left", padx=4)
+        prev.bind("<Button-1>", lambda e: self.shift(-1))
+        self.title = tk.Label(bar, bg=PANEL, fg=FG, font=app.font("Microsoft YaHei UI", 10))
+        self.title.pack(side="left", expand=True)
+        nxt = tk.Label(bar, text="›", **nav)
+        nxt.pack(side="left", padx=4)
+        nxt.bind("<Button-1>", lambda e: self.shift(1))
+        self.grid = tk.Frame(top, bg=PANEL)
+        self.grid.pack(pady=(6, 4))
+
+        foot = tk.Frame(top, bg=PANEL)
+        foot.pack(fill="x")
+        for key, value in (("date_today", dt.date.today()), ("date_tomorrow", dt.date.today() + dt.timedelta(1))):
+            link = tk.Label(foot, text=t(key), bg=PANEL, fg=ACCENT, cursor="hand2",
+                            font=app.font("Microsoft YaHei UI", 9))
+            link.pack(side="left", padx=(0, 10))
+            link.bind("<Button-1>", lambda e, v=value: self.pick(v))
+        if allow_clear:
+            clear = tk.Label(foot, text=t("date_none"), bg=PANEL, fg=FG_DIM, cursor="hand2",
+                             font=app.font("Microsoft YaHei UI", 9))
+            clear.pack(side="right")
+            clear.bind("<Button-1>", lambda e: self.pick(None))
+
+        top.bind("<Escape>", lambda e: top.destroy())
+        top.bind("<FocusOut>", lambda e: top.after(150, self.close_if_unfocused))
+        self.draw()
+        top.focus_force()
+
+    def close_if_unfocused(self):
+        """Close when focus went anywhere outside the calendar (another window or another app)."""
+        if not self.top.winfo_exists():
+            return
+        focus = self.top.focus_get()
+        if focus is None or not str(focus).startswith(str(self.top)):
+            self.top.destroy()
+
+    def shift(self, months):
+        y, m = divmod(self.month.month - 1 + months, 12)
+        self.month = dt.date(self.month.year + y, m + 1, 1)
+        self.draw()
+
+    def pick(self, day):
+        self.top.destroy()
+        self.on_pick(day)
+
+    def draw(self):
+        for w in self.grid.winfo_children():
+            w.destroy()
+        self.title.configure(text=t("date_month", y=self.month.year, m=self.month.month))
+        for col, name in enumerate(t("lib_weekdays")):
+            tk.Label(self.grid, text=name, bg=PANEL, fg=FG_DIM, width=3,
+                     font=self.app.font("Microsoft YaHei UI", 8)).grid(row=0, column=col)
+        today = dt.date.today()
+        day = self.month - dt.timedelta(days=self.month.weekday())
+        for row in range(1, 7):
+            for col in range(7):
+                in_month = day.month == self.month.month
+                bg = ACCENT if day == self.selected else PANEL
+                fg = BG if day == self.selected else (FG if in_month else "#5b6377")
+                cell = tk.Label(self.grid, text=str(day.day), bg=bg, fg=fg, width=3, cursor="hand2",
+                                font=self.app.font("Segoe UI Semibold" if day == today else "Segoe UI", 9))
+                cell.grid(row=row, column=col, padx=1, pady=1)
+                cell.bind("<Button-1>", lambda e, d=day: self.pick(d))
+                day += dt.timedelta(days=1)
+
+
+class TodoWindow:
+    """Three columns: long-term goals | today (plus what's coming up) | archive of finished tasks.
+
+    Each column has its input at the top and its list below, so nothing that changes ever moves an
     input box (on some machines a moved Entry was left drawn at its old position).
     """
 
@@ -238,7 +377,10 @@ class TodoWindow:
         top.configure(bg=BG)
         top.attributes("-topmost", True)
         s = app.scale
-        self.wrap = int(250 * s)
+        self.wrap = int(210 * s)
+        self.deadline = None             # chosen deadline for the next goal
+        self.task_day = dt.date.today()  # chosen day for the next task
+        self.clock_labels = {}           # running task id -> its time label, ticked every second
 
         head = tk.Frame(top, bg=BG)
         head.pack(fill="x", padx=18, pady=(14, 0))
@@ -248,11 +390,12 @@ class TodoWindow:
 
         columns = tk.Frame(top, bg=BG)
         columns.pack(fill="both", expand=True, padx=12, pady=(0, 16))
-        columns.columnconfigure((0, 1), weight=1, uniform="col")
+        columns.columnconfigure((0, 1, 2), weight=1, uniform="col")
         columns.rowconfigure(0, weight=1)
-        left, right = tk.Frame(columns, bg=BG), tk.Frame(columns, bg=BG)
-        left.grid(row=0, column=0, sticky="nsew", padx=(6, 12))
-        right.grid(row=0, column=1, sticky="nsew", padx=(12, 6))
+        cols = [tk.Frame(columns, bg=BG) for _ in range(3)]
+        for i, col in enumerate(cols):
+            col.grid(row=0, column=i, sticky="nsew", padx=8)
+        left, middle, right = cols
 
         # long-term goals
         self.section(left, t("goal_section"))
@@ -260,26 +403,51 @@ class TodoWindow:
         goal_bar.pack(fill="x", pady=(4, 6))
         self.goal_entry = self.entry(goal_bar, t("goal_hint"), self.add_goal)
         self.goal_entry.pack(side="left", fill="x", expand=True, ipady=int(5 * s))
-        self.deadline_entry = self.entry(goal_bar, t("goal_deadline_hint"), self.add_goal, width=11)
-        self.deadline_entry.pack(side="left", padx=(6, 0), ipady=int(5 * s))
+        self.deadline_btn = self.button(goal_bar, self.pick_deadline)
+        self.deadline_btn.pack(side="left", padx=(6, 0), fill="y")
         self.goal_rows = tk.Frame(left, bg=BG)
         self.goal_rows.pack(fill="both", expand=True)
 
-        # today's to-dos
-        self.progress = self.section(right, t("todo_section"))
-        task_bar = tk.Frame(right, bg=BG)
-        task_bar.pack(fill="x", pady=(4, 6))
+        # today
+        self.progress = self.section(middle, t("todo_section"))
+        task_bar = tk.Frame(middle, bg=BG)
+        task_bar.pack(fill="x", pady=(4, 2))
         self.task_entry = self.entry(task_bar, t("todo_hint"), self.add_task)
         self.task_entry.pack(side="left", fill="x", expand=True, ipady=int(5 * s))
-        self.goal_var = tk.StringVar()
-        self.goal_box = ttk.Combobox(task_bar, textvariable=self.goal_var, state="readonly", width=12,
-                                     font=app.font("Microsoft YaHei UI", 10))
-        self.goal_box.pack(side="left", padx=(6, 0))
-        self.task_rows = tk.Frame(right, bg=BG)
+        self.day_btn = self.button(task_bar, self.pick_task_day)
+        self.day_btn.pack(side="left", padx=(6, 0), fill="y")
+        self.task_goal = None  # goal id for the next task
+        self.goal_btn = self.button(middle, self.pick_goal)
+        self.goal_btn.configure(anchor="w", pady=int(3 * s))
+        self.goal_btn.pack(fill="x", pady=(0, 6))
+        self.task_rows = tk.Frame(middle, bg=BG)
         self.task_rows.pack(fill="both", expand=True)
 
+        # archive
+        self.archive_total = self.section(right, t("archive_section"))
+        box = tk.Frame(right, bg=PANEL)
+        box.pack(fill="both", expand=True, pady=(4, 0))
+        self.archive = tk.Text(box, bg=PANEL, fg=FG, relief="flat", wrap="none", cursor="arrow",
+                               padx=int(10 * s), pady=int(8 * s), spacing1=int(3 * s), spacing3=int(3 * s),
+                               font=app.font("Microsoft YaHei UI", 10), width=1, height=1,
+                               highlightthickness=0, selectbackground=PANEL, inactiveselectbackground=PANEL)
+        scroll = tk.Scrollbar(box, command=self.archive.yview)
+        self.archive.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.archive.pack(side="left", fill="both", expand=True)
+        self.archive.tag_configure("day", foreground=ACCENT, font=app.font("Microsoft YaHei UI Semibold", 10),
+                                   spacing1=int(10 * s))
+        self.archive.tag_configure("goal", foreground=FG_DIM, font=app.font("Microsoft YaHei UI", 9),
+                                   spacing1=0)
+        self.archive.tag_configure("time", foreground=FG_DIM)
+        self.archive.tag_configure("empty", foreground=FG_DIM)
+        self.archive.bind("<Configure>", lambda e: self.archive.configure(
+            tabs=(max(e.width - int(24 * s), 100), "right")))
+        tk.Label(right, text=t("archive_hint"), bg=BG, fg=FG_DIM,
+                 font=app.font("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(4, 0))
+
         top.bind("<Escape>", lambda e: top.destroy())
-        top.minsize(int(820 * s), int(420 * s))
+        top.minsize(int(1050 * s), int(480 * s))
         self.refresh()
         self.tick()
         top.lift()
@@ -296,15 +464,21 @@ class TodoWindow:
         right.pack(side="right")
         return right
 
-    def entry(self, parent, hint, on_enter, width=None):
+    def entry(self, parent, hint, on_enter):
         e = tk.Entry(parent, bg=PANEL, fg=FG_DIM, insertbackground=FG, relief="flat",
-                     font=self.app.font("Microsoft YaHei UI", 11), **({"width": width} if width else {}))
+                     font=self.app.font("Microsoft YaHei UI", 11))
         e.hint = hint
         e.insert(0, hint)
         e.bind("<FocusIn>", lambda ev: self.clear_hint(e))
         e.bind("<FocusOut>", lambda ev: self.restore_hint(e))
         e.bind("<Return>", on_enter)
         return e
+
+    def button(self, parent, command):
+        b = tk.Label(parent, bg=PANEL, fg=ACCENT, cursor="hand2", padx=10,
+                     font=self.app.font("Microsoft YaHei UI", 10))
+        b.bind("<Button-1>", lambda e: command())
+        return b
 
     @staticmethod
     def clear_hint(e):
@@ -322,12 +496,17 @@ class TodoWindow:
     def value(e):
         return "" if e.cget("fg") == FG_DIM else e.get().strip()
 
-    def row(self, parent, done, text, note, on_toggle, on_delete):
+    def small(self, parent, text, fg=FG_DIM, cursor="hand2", size=11):
+        return tk.Label(parent, text=text, bg=BG, fg=fg, cursor=cursor, font=self.app.font("Segoe UI Symbol", size))
+
+    def row(self, parent, done, text, note, on_toggle, on_delete, note_fg=ACCENT, timer=None):
+        """One goal or task line. `timer` = (row, on_start, on_pause) adds a stopwatch."""
         line = tk.Frame(parent, bg=BG)
         line.pack(fill="x", pady=2)
-        box = tk.Label(line, text="☑" if done else "☐", bg=BG, cursor="hand2",
-                       fg=GOOD if done else FG_DIM, font=self.app.font("Segoe UI Symbol", 14))
-        box.pack(side="left", padx=(6, 8))
+        box = self.small(line, "☑" if done else "☐", fg=GOOD if done else FG_DIM, size=14)
+        box.pack(side="left", padx=(4, 8))
+        close = self.small(line, "×", size=12)
+        close.pack(side="right", padx=4)
         body = tk.Frame(line, bg=BG)
         body.pack(side="left", fill="x", expand=True)
         text_font = tkfont.Font(family="Microsoft YaHei UI", size=round(11 * self.app.zoom), overstrike=bool(done))
@@ -335,84 +514,168 @@ class TodoWindow:
                          anchor="w", justify="left", wraplength=self.wrap)
         label.font = text_font  # keep a reference so Tk doesn't drop it
         label.pack(fill="x")
+        meta = tk.Frame(body, bg=BG)
+        meta.pack(fill="x")
         if note:
-            tk.Label(body, text=note, bg=BG, fg=ACCENT if not done else FG_DIM, anchor="w",
-                     font=self.app.font("Microsoft YaHei UI", 9)).pack(fill="x")
-        close = tk.Label(line, text="×", bg=BG, fg=FG_DIM, cursor="hand2", font=self.app.font("Segoe UI", 13))
-        close.pack(side="right", padx=6)
+            tk.Label(meta, text=note, bg=BG, fg=note_fg, font=self.app.font("Microsoft YaHei UI", 9)).pack(side="left")
+        if timer:
+            task, on_start, on_pause = timer
+            running = bool(task["started"])
+            spent = TodoList.elapsed(task)
+            clock = tk.Label(meta, text=fmt_clock(spent) if spent or running else "", bg=BG,
+                             fg=GOOD if running else FG_DIM, font=self.app.font("Segoe UI", 9))
+            clock.pack(side="left", padx=(8 if note else 0, 0))
+            if running:
+                self.clock_labels[task["id"]] = (clock, task)
+            play = self.small(line, "⏸" if running else "▶", fg=GOOD if running else ACCENT, size=12)
+            play.pack(side="right", padx=4)
+            play.bind("<Button-1>", lambda e: on_pause() if running else on_start())
         for w in (box, label):
             w.bind("<Button-1>", lambda e: on_toggle())
         close.bind("<Button-1>", lambda e: on_delete())
 
     # ---------- actions
 
-    def add_goal(self, _=None):
-        title = self.value(self.goal_entry)
-        if not title:
-            return
-        try:
-            deadline = parse_deadline(self.value(self.deadline_entry))
-        except ValueError:
-            self.deadline_entry.configure(bg="#7a2e2b")
-            self.top.after(900, lambda: self.deadline_entry.configure(bg=PANEL))
-            return
-        self.app.todos.add_goal(title, deadline)
-        for e in (self.goal_entry, self.deadline_entry):
-            e.delete(0, "end")
-        self.restore_hint(self.deadline_entry)
-        self.goal_entry.focus_set()
-        self.refresh()
-
-    def add_task(self, _=None):
-        text = self.value(self.task_entry)
-        if text:
-            goal_id = self.goal_ids[self.goal_box.current()] if self.goal_box.current() >= 0 else None
-            self.app.todos.add(text, goal_id)
-            self.task_entry.delete(0, "end")
-            self.refresh()
-
     def act(self, fn, *args):
         fn(*args)
         self.refresh()
 
+    def pick_deadline(self):
+        DatePicker(self.app, self.deadline_btn, self.set_deadline, self.deadline)
+
+    def set_deadline(self, day):
+        self.deadline = day
+        self.refresh_buttons()
+        self.goal_entry.focus_set()
+
+    def pick_task_day(self):
+        DatePicker(self.app, self.day_btn, self.set_task_day, self.task_day, allow_clear=False)
+
+    def set_task_day(self, day):
+        self.task_day = day or dt.date.today()
+        self.refresh_buttons()
+        self.task_entry.focus_set()
+
+    def refresh_buttons(self):
+        self.deadline_btn.configure(text=f"{day_label(self.deadline) if self.deadline else t('goal_deadline_hint')} ▾")
+        self.day_btn.configure(text=f"{day_label(self.task_day)} ▾")
+        titles = {g["id"]: g["title"] for g in self.app.todos.open_goals()}
+        self.goal_btn.configure(text=f"{t('task_goal', goal=titles[self.task_goal]) if self.task_goal in titles else t('goal_none')} ▾")
+
+    def add_goal(self, _=None):
+        title = self.value(self.goal_entry)
+        if not title:
+            return
+        self.app.todos.add_goal(title, self.deadline)
+        self.goal_entry.delete(0, "end")
+        self.deadline = None
+        self.refresh()
+
+    def add_task(self, _=None):
+        text = self.value(self.task_entry)
+        if not text:
+            return
+        self.app.todos.add(text, self.task_goal, self.task_day)
+        self.task_entry.delete(0, "end")
+        self.task_day = dt.date.today()
+        self.refresh()
+
+    def pick_goal(self):
+        menu = tk.Menu(self.top, tearoff=0)
+        for goal_id, title in [(None, t("goal_none"))] + [(g["id"], g["title"]) for g in self.app.todos.open_goals()]:
+            menu.add_command(label=title, command=lambda i=goal_id: self.set_task_goal(i))
+        menu.tk_popup(self.goal_btn.winfo_rootx(), self.goal_btn.winfo_rooty() + self.goal_btn.winfo_height())
+
+    def set_task_goal(self, goal_id):
+        self.task_goal = goal_id
+        self.refresh_buttons()
+        self.task_entry.focus_set()
+
     def tick(self):
+        """Every second: advance the running stopwatch; every so often, the time in the library."""
         if not self.top.winfo_exists():
             return
+        for clock, task in self.clock_labels.values():
+            if clock.winfo_exists():
+                clock.configure(text=fmt_clock(TodoList.elapsed(task)))
         row = self.app.library.current()
         self.session.configure(text=t("lib_in", time=fmt_duration(time.time() - row["start"])) if row else "")
-        self.top.after(15000, self.tick)
+        self.top.after(1000, self.tick)
 
     def refresh(self):
         todos = self.app.todos
+        self.clock_labels = {}
         for frame in (self.goal_rows, self.task_rows):
             for w in frame.winfo_children():
                 w.destroy()
+        self.refresh_buttons()
 
+        # goals
         goals = todos.goals()
         if not goals:
             tk.Label(self.goal_rows, text=t("goal_empty"), bg=BG, fg=FG_DIM,
                      font=self.app.font("Microsoft YaHei UI", 10)).pack(anchor="w", padx=6, pady=4)
         for g in goals:
-            note = " · ".join(filter(None, [countdown(g["deadline"]) if g["deadline"] else "",
-                                            t("goal_tasks_done", n=g["tasks_done"]) if g["tasks_done"] else ""]))
+            note = " · ".join(filter(None, [
+                countdown(g["deadline"]) if g["deadline"] else "",
+                t("goal_tasks_done", n=g["tasks_done"]) if g["tasks_done"] else "",
+                t("goal_time", time=fmt_long(g["time_spent"])) if g["time_spent"] >= 60 else ""]))
             self.row(self.goal_rows, g["done"], g["title"], note,
                      lambda i=g["id"]: self.act(todos.toggle_goal, i), lambda i=g["id"]: self.act(todos.delete_goal, i))
 
-        open_goals = todos.open_goals()
-        previous = self.goal_box.current()
-        self.goal_ids = [None] + [g["id"] for g in open_goals]
-        self.goal_box.configure(values=[t("goal_none")] + [g["title"] for g in open_goals])
-        self.goal_box.current(previous if 0 <= previous < len(self.goal_ids) else 0)
+        if self.task_goal not in {g["id"] for g in todos.open_goals()}:
+            self.task_goal = None
+            self.refresh_buttons()
 
-        rows = todos.today()
+        # today + coming up
         done, total = todos.progress()
         self.progress.configure(text=t("todo_progress", done=done, total=total) if total else "")
-        if not rows:
+        today_rows = todos.today()
+        if not today_rows:
             tk.Label(self.task_rows, text=t("todo_empty"), bg=BG, fg=FG_DIM,
                      font=self.app.font("Microsoft YaHei UI", 10)).pack(anchor="w", padx=6, pady=4)
-        for r in rows:
-            self.row(self.task_rows, r["done"], r["text"], r["goal"] or "",
-                     lambda i=r["id"]: self.act(todos.toggle, i), lambda i=r["id"]: self.act(todos.delete, i))
+        today = dt.date.today()
+        for r in today_rows:
+            late = (today - dt.date.fromisoformat(r["due"])).days if r["due"] else 0
+            note = " · ".join(filter(None, [t("task_late", n=late) if late > 0 else "", r["goal"] or ""]))
+            self.row(self.task_rows, False, r["text"], note,
+                     lambda i=r["id"]: self.act(todos.complete, i), lambda i=r["id"]: self.act(todos.delete, i),
+                     note_fg=LATE if late > 0 else ACCENT,
+                     timer=(r, lambda i=r["id"]: self.act(todos.start, i), lambda i=r["id"]: self.act(todos.pause, i)))
+        later = todos.upcoming()
+        if later:
+            tk.Label(self.task_rows, text=t("upcoming_section"), bg=BG, fg=FG_DIM,
+                     font=self.app.font("Microsoft YaHei UI", 10)).pack(anchor="w", padx=6, pady=(12, 2))
+            for r in later:
+                note = " · ".join(filter(None, [day_label(dt.date.fromisoformat(r["due"])), r["goal"] or ""]))
+                self.row(self.task_rows, False, r["text"], note,
+                         lambda i=r["id"]: self.act(todos.complete, i), lambda i=r["id"]: self.act(todos.delete, i),
+                         note_fg=FG_DIM,
+                         timer=(r, lambda i=r["id"]: self.act(todos.start, i), lambda i=r["id"]: self.act(todos.pause, i)))
+
+        # archive
+        arc = self.archive
+        arc.configure(state="normal")
+        arc.delete("1.0", "end")
+        groups = todos.archive()
+        self.archive_total.configure(text=t("archive_total", n=sum(len(rows) for _, _, rows in groups)) if groups else "")
+        if not groups:
+            arc.insert("end", t("archive_empty"), "empty")
+        for day, seconds, rows in groups:
+            arc.insert("end", f"{day_label(day)} · {t('archive_count', n=len(rows))}", "day")
+            arc.insert("end", f"\t{fmt_duration(seconds)}\n" if seconds else "\n", ("day", "time"))
+            for r in rows:
+                tag = f"task-{r['id']}"
+                text = r["text"] if len(r["text"]) <= 22 else r["text"][:21] + "…"
+                arc.insert("end", f"✓ {text}", tag)
+                arc.insert("end", f"\t{fmt_clock(r['spent']) if r['spent'] else '—'}\n", (tag, "time"))
+                if r["goal"]:  # on its own line so a long goal never pushes the time out of view
+                    arc.insert("end", f"    {r['goal']}\n", (tag, "goal"))
+                arc.tag_bind(tag, "<Double-1>", lambda e, i=r["id"]: self.act(todos.reopen, i))
+                arc.tag_bind(tag, "<Enter>", lambda e: arc.configure(cursor="hand2"))
+                arc.tag_bind(tag, "<Leave>", lambda e: arc.configure(cursor="arrow"))
+        arc.configure(state="disabled")
+
         self.top.geometry("")  # grow or shrink with the lists
 
 
