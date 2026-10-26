@@ -32,6 +32,9 @@ screenshot OCR, settings, and spaced-repetition review.
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
+- **Optional library check-in.** Check in when you get to the library and out when you leave. The
+  card shows how long you've been there, and the library log has today / this week / your streak,
+  a calendar heatmap, and how many new words you picked up each day. Off by default.
 - **Stays out of your way.** A plain Ctrl+C never triggers it, your clipboard is restored after a
   lookup, and you can pause it from the menu.
 
@@ -76,6 +79,8 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Browse, search, export | Right-click → **My words** |
 | Change languages, voice, speed, trigger | Right-click → **Settings…** |
 | Stop it for a while | Right-click → **Pause** |
+| Check in / out at the library | Right-click → **Check in at the library** (turn on *Library check-in* in Settings first) |
+| See your library time and streak | Right-click → **Library log…** |
 
 Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
 your word list.
@@ -116,6 +121,7 @@ For screenshot OCR in a language other than English, Windows needs that language
 | Look up a word by | *Ctrl+Shift tap* (default) or *Copying (Ctrl+C)* |
 | Translate screenshots | Turn Win+Shift+S OCR on or off |
 | Start with Windows | Adds or removes a shortcut in your Startup folder |
+| Library check-in | Shows check-in / check-out and the library log in the menu. A session you forget to end stops after 8 hours |
 
 Settings are saved in `settings.json` and your words in `vocab.db`, both next to the script.
 Set the `WORD_POPPER_HOME` environment variable to keep them somewhere else.
@@ -153,6 +159,7 @@ word_popper.py      the card, hotkey, clipboard watching and lookup flow
 lookup.py           translation (Google), dictionary (Youdao), OCR (Windows.Media.Ocr)
 speech.py           Edge TTS with an mp3 cache; SAPI fallback
 vocab.py            SQLite word list, review window, word-list window
+library.py          library check-in sessions, streaks and the library-log window
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags
 i18n.py             interface strings

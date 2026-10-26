@@ -24,7 +24,13 @@ Word Popper 使用说明
 
 【设置】（右键卡片 →“设置…”）
 可以选：界面语言、我在学的语言、翻译成的语言（12 种语言）、发音口音、语速、字体大小、
-查词方式、开机自动启动。
+查词方式、开机自动启动、图书馆打卡。
+
+【图书馆打卡】（先在设置里勾选“图书馆打卡”）
+到图书馆：右键卡片 →“图书馆签到”，卡片上会显示在馆时长。
+离开时：右键卡片 →“图书馆签退”。
+右键卡片 →“打卡记录…”：今天 / 本周时长、连续打卡天数、日历热力图、每次的签到记录和当天新词数。
+忘记签退的话，超过 8 小时会自动结束。
 
 【常见问题】
 - 按 Ctrl+Shift 会切换输入法？Windows 默认用 Ctrl+Shift 切换键盘布局。可以在设置里把
@@ -57,7 +63,11 @@ Looking words up
 Review: right-click → Review. Space shows the answer, 1 = forgot, 2 = knew it.
 
 Settings (right-click → Settings…): interface language, the language you're learning, the
-language to translate into (12 languages), voice, speed, text size, trigger, start with Windows.
+language to translate into (12 languages), voice, speed, text size, trigger, start with Windows, library check-in.
+
+Library check-in (turn it on in Settings first): right-click → Check in at the library when you
+arrive and Check out when you leave. Right-click → Library log… shows today, this week, your
+streak and a calendar heatmap. A session you forget to end stops after 8 hours.
 
 Notes
 - Ctrl+Shift switches keyboard layouts? Change "Look up a word by" to "Copying (Ctrl+C)" in
