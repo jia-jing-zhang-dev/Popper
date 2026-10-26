@@ -42,7 +42,11 @@ EVENT_LOG = os.environ.get("WORD_POPPER_EVENTS")  # optional playback log (used 
 MAX_TEXT_LEN = 300         # longer selections are ignored
 COPY_MAX_LEN = 80          # in copy mode, only short copies count as lookups
 VOCAB_MAX_WORDS = 4        # sentences are translated but not saved to the word list
-MAX_IMAGE_PIXELS = 1_500_000  # skip OCR for big images (full-screen captures)
+# Only small snips are looked up: a word, a phrase or a line or two. Bigger screenshots are
+# usually taken for something else (sharing a window, a bug report) and would be read as junk.
+MAX_SNIP_HEIGHT = 220         # pixels
+MAX_SNIP_PIXELS = 600_000
+MIN_LETTER_RATIO = 0.8        # OCR results with more symbols than this are treated as junk
 HOTKEY_MAX_SECONDS = 1.0   # holding Ctrl+Shift longer than this isn't a "tap"
 EXPANDED_SECONDS = 8
 TEXT_SIZES = {"small": 0.9, "normal": 1.0, "large": 1.25, "huge": 1.6}
@@ -129,6 +133,12 @@ def looks_like_lookup(text, max_len=MAX_TEXT_LEN):
     if not text or len(text) > max_len or not LETTER_RE.search(text) or text.isdigit():
         return False
     return not re.search(r"https?://|www\.", text)
+
+
+def looks_like_words(text):
+    """True for OCR output that reads like real words, not junk such as 'üfra(EJi$'."""
+    chars = [c for c in text if not c.isspace()]
+    return bool(chars) and sum(c.isalpha() for c in chars) / len(chars) >= MIN_LETTER_RATIO
 
 
 def log_event(path, text):
@@ -505,7 +515,8 @@ class App:
             img = ImageGrab.grabclipboard()
         except Exception:
             return
-        if isinstance(img, Image.Image) and img.width * img.height <= MAX_IMAGE_PIXELS:
+        if (isinstance(img, Image.Image) and img.height <= MAX_SNIP_HEIGHT
+                and img.width * img.height <= MAX_SNIP_PIXELS):
             self.word_lbl.configure(text=f"🔍 {t('reading_screenshot')}")
             self.place_window()
             threading.Thread(target=self.ocr_worker, args=(img,), daemon=True).start()
@@ -553,7 +564,7 @@ class App:
             while True:
                 msg = self.ui_q.get_nowait()
                 if msg[0] == "ocr":
-                    if msg[1]:
+                    if looks_like_words(msg[1]):
                         self.lookup(msg[1])
                     else:
                         self.update_status()
