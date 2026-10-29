@@ -62,6 +62,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `i18n.py` | Every UI string, `t(key, **kw)` |
 | `vocab.py` | Word list (`Vocab`), review flash cards, word-list window |
 | `library.py` | Library check-in (`LibraryLog`), goals and dated to-dos with stopwatches (`TodoList`), `DatePicker`, `Celebration`, `TodoWindow`, `LibraryWindow` |
+| `focus.py` | Study-time detection: samples the foreground window and idle time every 5 s into per-minute buckets keyed by program/site; default rules plus the owner's overrides decide what counts |
 | `journal.py` | Journal store and window; a page is the sections of every feature that's on |
 | `settings_window.py` | Settings UI, Start-with-Windows shortcut |
 | `packaging/` | PyInstaller build of a standalone exe (see caveats) |
@@ -72,7 +73,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 - `settings.json` and `vocab.db` sit next to the script (`%APPDATA%\Word Popper` for the packaged exe).
   Set `WORD_POPPER_HOME` to point them somewhere else; every test does this.
 - `vocab.db` holds every table: `words`, `library_sessions`, `todos`, `goals`, `journal`.
-  All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
+  Study time adds `focus_activity` and `focus_rules`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
 - Schema changes go in the store's constructor as `CREATE TABLE IF NOT EXISTS` plus `ALTER TABLE ...
   ADD COLUMN` guarded by `PRAGMA table_info`. The owner's real data must upgrade in place. Never drop
   or rewrite their tables.

@@ -42,6 +42,12 @@ screenshot OCR, settings, and spaced-repetition review.
   spent) and tasks you can plan for any day, attach to a goal and time with a stopwatch.
   Finishing a task or a goal pops up a small celebration with how many days it took since you
   wrote it down.
+- **Study time, detected on its own.** Popper notices which program or site is in front and whether
+  you're at the keyboard, and counts the time you actually study: VS Code, PDFs, Brightspace, Google
+  Docs and lectures count; YouTube, social apps and time away don't. A list of everything you used
+  lets you re-sort any program or site with one click, and past days are re-counted. Shows today,
+  this week and a 7-day chart, and adds a section to the journal. Only kept on your computer. Off by
+  default.
 - **Library check-in.** One menu item checks you in or out, whichever applies. Checking in opens
   your goals and to-dos. Checking out tells you how long you stayed and how many tasks you
   finished. The library log has today / this week / your streak, a calendar heatmap, and the new
@@ -137,7 +143,7 @@ For screenshot OCR in a language other than English, Windows needs that language
 | Look up a word by | *Ctrl+Shift tap* (default) or *Copying (Ctrl+C)* |
 | Translate screenshots | Turn Win+Shift+S OCR on or off |
 | Start with Windows | Adds or removes a shortcut in your Startup folder |
-| Features | Turn word review, goals & to-dos, library check-in and the journal on or off. A library session you forget to end stops after 8 hours |
+| Features | Turn word review, goals & to-dos, study time, library check-in and the journal on or off. A library session you forget to end stops after 8 hours |
 
 Settings are saved in `settings.json` and your words in `vocab.db`, both next to the script.
 Set the `WORD_POPPER_HOME` environment variable to keep them somewhere else.
@@ -177,6 +183,7 @@ speech.py           Edge TTS with an mp3 cache; SAPI fallback
 vocab.py            SQLite word list, review window, word-list window
 library.py          library check-in sessions, streaks, goals and to-dos, and their windows
 journal.py          day-by-day journal built from each feature's sections, with written reflections
+focus.py            study-time detection: foreground window + idle time, rules, the study-time window
 features/           one module per feature (review, todos, library, journal); copy _template.py to add one
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags
