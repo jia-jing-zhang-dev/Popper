@@ -137,6 +137,11 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 - Author identity is `jia-jing-zhang-dev` (global git config). The remote is
   `jia-jing-zhang-dev/Popper` (renamed from `Real-Time-Translate-MCP-`), which is **public**: everything
   pushed is visible to anyone. Never commit personal data, keys or tokens.
+- Before every commit: if the change creates new files or folders (data, caches, working dirs, logs),
+  add them to `.gitignore` in the same commit, then read `git status --short` (and `--ignored` when new
+  files appeared) and the diff for personal content: emails, tokens, the owner's chats, journal or study
+  data, screenshots of their screen, local paths. Run Claude Code (`claude -p`) in `DATA_DIR/buddy`, never
+  in the repo.
 - `settings.json`, `vocab.db`, `.venv/`, `build/`, `dist/`, `demo/_work/` are ignored. Keep it that way;
   `vocab.db` is the owner's personal data.
 

@@ -75,6 +75,12 @@ class UsageFeature(Feature):
         self.app.root.after(3000, lambda: self.on and self.refresh())
         self.app.root.after(1000, self.render_loop)
 
+    def workdir(self):
+        """Run Claude Code in Popper's own scratch folder, never in the (public) repository."""
+        path = os.path.join(self.app.data_dir, "buddy")
+        os.makedirs(path, exist_ok=True)
+        return path
+
     def refresh(self):
         if self.reading:
             return
@@ -87,7 +93,7 @@ class UsageFeature(Feature):
         if exe:
             try:
                 proc = subprocess.run([exe, "-p", "/usage", "--output-format", "json", "--strict-mcp-config"],
-                                      cwd=os.path.join(self.app.data_dir), capture_output=True, text=True,
+                                      cwd=self.workdir(), capture_output=True, text=True,
                                       encoding="utf-8", timeout=60, stdin=subprocess.DEVNULL,
                                       creationflags=subprocess.CREATE_NO_WINDOW)
                 limits = parse_usage(json.loads(proc.stdout or "{}").get("result", "")) or None

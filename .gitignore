@@ -8,3 +8,9 @@ demo/_work/
 build/
 dist/
 packaging/icon.ico
+# local data and working dirs (this repo is public: nothing personal goes in)
+buddy/
+.claude/
+*.log
+*.mkv
+*.rgb
