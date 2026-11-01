@@ -218,7 +218,7 @@ class BuddyFeature(Feature):
         if self.waiting or self.bridge.busy or self.quiet() or away:
             return
         start, _ = day_range(dt.date.today())
-        if not self.said_today("morning"):
+        if dt.datetime.now().hour < 12 and not self.said_today("morning"):  # a "good morning" only in the morning
             self.morning()
             return
         if (dt.datetime.now().hour >= EVENING_HOUR and not self.said_today("evening")
