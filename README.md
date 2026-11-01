@@ -30,6 +30,10 @@ screenshot OCR, settings, and spaced-repetition review.
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
+- **A desktop pet.** 泡泡 stands on your desktop on its own (transparent window): it breathes,
+  blinks, hops when you click it or look a word up, wanders a little now and then, and dozes late at
+  night. The card floats above it as its speech bubble; drag either to move both. Turn it off in
+  Settings → Features to get the plain card back.
 - **A face on the card.** 泡泡 is a little bubble that blinks, thinks while the study buddy is
   working, opens its mouth when it has a question, looks worried when you haven't studied, dozes when
   paused, and celebrates when you finish something.

@@ -145,6 +145,10 @@ def looks_like_lookup(text, max_len=MAX_TEXT_LEN):
     return not re.search(r"https?://|www\.", text)
 
 
+def dt_hour():
+    return time.localtime().tm_hour
+
+
 def looks_like_words(text):
     """True for OCR output that reads like real words, not junk such as 'üfra(EJi$'."""
     chars = [c for c in text if not c.isspace()]
@@ -210,6 +214,12 @@ class App:
         self.badges = {}
         self.mascot = Mascot()
         self.mood_override = None  # (mood, until) for a short-lived face, e.g. celebrating
+        # hooks for a desktop pet (features/pet.py): where the card sits, who moves when the card is
+        # dragged, who wants to know the face and when to hop
+        self.anchor = None         # () -> (x, bottom) to place the card at, or None
+        self.card_drag = None      # (dx, dy, done) -> None, moves the pet instead of the card
+        self.mood_listeners = []   # fn(mood)
+        self.hop_listeners = []    # fn()
         self.avatar = tk.Label(self.top_row, bg=BG, cursor="hand2")
         self.avatar.pack(side="left", padx=(0, 8))
         self.word_lbl = tk.Label(self.top_row, bg=BG, fg=FG, font=self.card_fonts["word"],
@@ -273,6 +283,8 @@ class App:
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         x = self.settings["x"] if self.settings["x"] is not None else sw - w - 40
         bottom = self.settings["bottom"] if self.settings["bottom"] is not None else sh - 80
+        if self.anchor:  # the card floats above the pet like a speech bubble
+            x, bottom = self.anchor()
         x = max(0, min(x, sw - w))
         bottom = max(h, min(bottom, sh))
         self.root.geometry(f"+{x}+{bottom - h}")
@@ -338,6 +350,8 @@ class App:
             return "sleepy"
         if self.notice:
             return self.notice[2]
+        if dt_hour() >= 23 or dt_hour() < 7:
+            return "sleepy"  # late at night 泡泡 dozes
         buddy = next((f for f in getattr(self, "features", []) if f.id == "buddy"), None)
         if buddy and buddy.on and buddy.waiting:
             return "thinking"
@@ -349,6 +363,8 @@ class App:
             mood = "blink"
         size = round(26 * self.scale)
         self.avatar.configure(image=self.mascot.image(mood, size))
+        for fn in self.mood_listeners:
+            fn(mood)
 
     def set_mood(self, mood, seconds):
         """Show a face for a while (then back to whatever fits)."""
@@ -390,24 +406,38 @@ class App:
         dx, dy = e.x_root - sx, e.y_root - sy
         if moved or abs(dx) + abs(dy) > 4:
             self.drag = (sx, sy, wx, wy, True)
-            self.root.geometry(f"+{wx + dx}+{wy + dy}")
+            if self.card_drag:
+                self.card_drag(dx, dy, False)
+            else:
+                self.root.geometry(f"+{wx + dx}+{wy + dy}")
 
     def on_release(self, e):
         if not self.drag:
             return
         moved = self.drag[4]
         self.drag = None
-        if moved:
+        if moved and self.card_drag:
+            self.card_drag(0, 0, True)
+        elif moved:
             self.settings["x"] = self.root.winfo_x()
             self.settings["bottom"] = self.root.winfo_y() + self.root.winfo_height()
             save_settings(self.settings)
-        elif self.notice:
+        else:
+            self.card_clicked()
+
+    def card_clicked(self):
+        """A click on the card (or the pet): answer the notice if there is one, else replay the word."""
+        if self.notice:
             on_click = self.notice[1]
             self.clear_notice()
             on_click()
         elif self.current:
             self.speak_item(self.current)
             self.expand()
+
+    def hop(self):
+        for fn in self.hop_listeners:
+            fn()
 
     def show_menu(self, e):
         menu = tk.Menu(self.root, tearoff=0)
@@ -585,6 +615,7 @@ class App:
             return
         self.last_trigger = (text, time.time())
 
+        self.hop()
         self.current = {"word": text, "trans": t("translating"), "senses": [], "pron": {},
                         "speak": None, "speak_lang": self.settings["learn"]}
         # Non-CJK text is most likely in the language being learned: speak it right away
