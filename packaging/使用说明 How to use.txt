@@ -40,6 +40,13 @@
 右键卡片 →“有效学习”：今天、本周学习时长和 7 天柱状图；下面列出用过的程序和网站，
 点左边的标签在“学习 / 不算 / 忽略”之间切换，之前的时间会按新分类重新计算。只保存在本机。
 
+【学习伙伴】（设置 → 功能 里勾选“学习伙伴”；需要电脑上已安装并登录 Claude Code）
+像个操心的朋友：只读取你选的教材文件夹，知道你正在看什么讲义。认真学了 15～20 分钟后，
+卡片会提示“泡泡有个问题”，点开就能在小窗口里回答；它会批改、讲解，答错的题过几天再问你。
+早上提醒考试倒计时，晚上学得太少会念叨你，每天还会分享一个和你兴趣相关的新知识。
+右键卡片 →“和泡泡聊天…”可以随时提问；“教材文件夹”可以增删；“今天先别问了”当天不再打扰。
+23:00～8:00 免打扰，一天最多 20 题。讲义内容、窗口标题和聊天内容会发送给 Claude。
+
 【日记】右键卡片 →“日记…”
 每天一页：完成的任务和用时、新查的词（点一下听发音）、在图书馆的时间，
 最下面可以写当天的反思，会自动保存。左边列出有记录的日子，✎ 表示那天写了反思。
@@ -87,6 +94,13 @@ Goals & to-dos has two columns: long-term goals (pick a deadline on the calendar
 Study time (turn it on in Settings → Features): counts the time you actually study, from the
 program or site in front and whether you're at the keyboard. Right-click → Study time to see it
 and click a tag to re-sort a program or site. Kept only on this computer.
+
+Study buddy (Settings → Features; needs Claude Code installed and signed in): reads only the course
+folders you pick and notices what you have open. After 15-20 minutes of study the card says Popper
+has a question; answer it in the chat window and it grades and explains, and brings missed ones back
+later. Morning exam countdowns, an evening nudge, and something new each day. Right-click → Chat
+with Popper… anytime. Quiet 23:00-08:00, at most 20 questions a day. Course text, window titles and
+your messages go to Claude.
 
 Journal (right-click → Journal…): one page per day with finished tasks and their times, new words,
 library time, and a reflection you write (saved automatically). Right-click → Library log… shows today, this week, your

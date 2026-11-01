@@ -8,6 +8,7 @@ import time
 from buddy import BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
 from focus import day_range, idle_seconds
 from i18n import t
+from journal import Line, Section
 
 from .base import Feature
 
@@ -16,6 +17,8 @@ QUIET_FROM, QUIET_UNTIL = 23, 8  # no unprompted messages between 23:00 and 08:0
 DAILY_MAX = 20                   # unprompted questions per day, at most
 GAP_MINUTES = (15, 20)           # minutes of actual study between unprompted questions
 EVENING_HOUR, EVENING_MINIMUM = 21, 30 * 60  # after 21:00, nudge if under 30 min of study today
+DISCOVERY_HOUR, DISCOVERY_MINIMUM = 14, 30 * 60  # one "something new" a day, after 14:00 and 30 min of study
+REVIEW_SHARE = 0.4                # when a missed question is due, how often it replaces a new one
 
 
 class BuddyFeature(Feature):
@@ -136,6 +139,8 @@ class BuddyFeature(Feature):
             self.store.add_question(text, tags.get("topic"), tags.get("source"))
         if tags.get("interest"):
             self.store.like(tags["interest"], 2)
+        elif kind == "chat" and tags.get("topic") and "verdict" not in tags:
+            self.store.like(tags["topic"], 0.5)
 
     def ask_question(self):
         """Ask for one question about what the student is studying (used by the button and the scheduler)."""
@@ -147,6 +152,42 @@ class BuddyFeature(Feature):
         if titles:
             prompt = t("buddy_ctx_now", titles="; ".join(titles)) + "\n" + prompt
         self.send(prompt, "question")
+
+    def ask_review(self, missed):
+        """Come back to a missed question, worded differently."""
+        self.last_question = time.time()
+        self.gap = random.uniform(*GAP_MINUTES) * 60
+        self.active_seconds = 0
+        self.store.take_review(missed["id"])
+        self.send(t("buddy_prompt_review", question=missed["question"], topic=missed["topic"] or "?"), "question")
+
+    def review_now(self):
+        due = self.store.due_reviews()
+        if due:
+            self.ask_review(due[0])
+        else:
+            self.note(t("buddy_no_reviews"))
+
+    def discover(self):
+        """Once a day: something interesting just beyond the courses, picked from what the student likes."""
+        interests = self.store.interests()
+        prompt = t("buddy_prompt_discovery", interests=", ".join(interests) if interests else t("buddy_none_yet"))
+        titles = self.studying_now()
+        if titles:
+            prompt = t("buddy_ctx_now", titles="; ".join(titles)) + "\n" + prompt
+        self.send(prompt, "discovery")
+
+    def journal_sections(self):
+        return [self.journal_section]
+
+    def journal_section(self, app, start, end):
+        asked, verdicts, topics = self.store.day_summary(start, end)
+        if not asked:
+            return None
+        lines = [Line(t("j_buddy_result", correct=verdicts.get("correct", 0), partial=verdicts.get("partial", 0),
+                        wrong=verdicts.get("wrong", 0)))]
+        lines += [Line(topic) for topic in topics[:8]]
+        return Section(t("j_buddy"), t("j_buddy_sum", n=asked), lines)
 
     # ---------- being a fussy friend
 
@@ -187,9 +228,17 @@ class BuddyFeature(Feature):
         open_q = self.store.open_question()
         if open_q and time.time() - open_q["ts"] < 40 * 60:
             return  # wait for an answer before asking more
+        if (dt.datetime.now().hour >= DISCOVERY_HOUR and not self.said_today("discovery")
+                and self.studied_since(start) >= DISCOVERY_MINIMUM):
+            self.discover()
+            return
         asked = self.store.db.execute("SELECT COUNT(*) FROM buddy_questions WHERE ts >= ?", (start,)).fetchone()[0]
         if asked < DAILY_MAX and self.studied_since(self.last_question) >= self.gap:
-            self.ask_question()
+            due = self.store.due_reviews()
+            if due and random.random() < REVIEW_SHARE:
+                self.ask_review(due[0])
+            else:
+                self.ask_question()
 
     def local_message(self, text, kind):
         """A message Popper writes itself (no Claude call)."""

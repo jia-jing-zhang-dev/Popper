@@ -35,6 +35,14 @@ screenshot OCR, settings, and spaced-repetition review.
 
 ### Features (each can be turned off in Settings)
 
+- **Study buddy (Claude).** A slightly fussy friend that keeps you learning. It runs Claude Code
+  in the background with the Claude login already on your computer (no API key), reads only the
+  course folders you pick, and notices what you have open. After 15-20 minutes of real study it
+  asks one question about that material in a small chat window; it grades your answer, explains,
+  and brings missed questions back after 1, 3, 7 and 14 days. Mornings bring exam countdowns,
+  evenings a nudge if you barely studied, and once a day it shares something new just beyond your
+  courses, picked from what you've been curious about. Quiet 23:00-08:00 and capped at 20
+  questions a day. Course text, window titles and your messages go to Claude. Off by default.
 - **Word list and review.** Every lookup goes into a local SQLite word list. Review uses
   flash cards with growing intervals (1 → 2 → 4 → 7 → 15 → 30 → 60 days). Search, delete and
   export to CSV (opens in Excel, and imports into Anki).
@@ -103,6 +111,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
 | Look back on a day and write a reflection | Right-click → **Journal…** |
+| Chat with the study buddy, get a question, retry missed ones | Right-click → **Chat with Popper…**, or click the card when it says Popper has a question |
 
 Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
 your word list.
@@ -184,6 +193,7 @@ vocab.py            SQLite word list, review window, word-list window
 library.py          library check-in sessions, streaks, goals and to-dos, and their windows
 journal.py          day-by-day journal built from each feature's sections, with written reflections
 focus.py            study-time detection: foreground window + idle time, rules, the study-time window
+buddy.py            study buddy: runs `claude -p` with read-only tools on the course folders, chat window, its tables
 features/           one module per feature (review, todos, library, journal); copy _template.py to add one
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags

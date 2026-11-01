@@ -62,18 +62,32 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `i18n.py` | Every UI string, `t(key, **kw)` |
 | `vocab.py` | Word list (`Vocab`), review flash cards, word-list window |
 | `library.py` | Library check-in (`LibraryLog`), goals and dated to-dos with stopwatches (`TodoList`), `DatePicker`, `Celebration`, `TodoWindow`, `LibraryWindow` |
+| `buddy.py` | Study buddy: `ClaudeBridge` runs `claude -p` (one job at a time, on a worker thread, results back via `app.ui_q` `"call"`), `BuddyStore` (messages, questions with review dates, interests, one Claude session per day), chat and folder windows |
 | `focus.py` | Study-time detection: samples the foreground window and idle time every 5 s into per-minute buckets keyed by program/site; default rules plus the owner's overrides decide what counts |
 | `journal.py` | Journal store and window; a page is the sections of every feature that's on |
 | `settings_window.py` | Settings UI, Start-with-Windows shortcut |
 | `packaging/` | PyInstaller build of a standalone exe (see caveats) |
 | `demo/` | Scripts that recorded `docs/demo.mp4` / `docs/demo.gif` |
 
+## Study buddy and Claude
+
+- It calls the **Claude Code CLI** (`claude -p ... --output-format json`), so it runs on the owner's
+  Claude subscription login, not an API key. If replies fail with an auth error, the CLI's login has
+  expired. The owner runs `claude auth login` in a terminal; never enter credentials for them.
+- The CLI gets only `--tools Read,Glob,Grep`, `--add-dir` for the folders in `settings["buddy_folders"]`,
+  `--strict-mcp-config`, `--permission-prompts none`, and the persona from `PERSONA`. Keep it read-only.
+- Replies end in `[[topic: ...]]`, `[[source: ...]]`, `[[verdict: ...]]`, `[[interest: ...]]` tags that
+  `split_tags` reads and strips (it also strips Markdown and emoji, which Tk shows badly).
+- Every real call spends the owner's quota and takes 7-30 s. Test scheduling and book-keeping with
+  a fake `bridge.ask` that queues a canned reply, and make real calls only for a final check.
+
 ## Data
 
 - `settings.json` and `vocab.db` sit next to the script (`%APPDATA%\Word Popper` for the packaged exe).
   Set `WORD_POPPER_HOME` to point them somewhere else; every test does this.
 - `vocab.db` holds every table: `words`, `library_sessions`, `todos`, `goals`, `journal`.
-  Study time adds `focus_activity` and `focus_rules`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
+  Study time adds `focus_activity` and `focus_rules`; the buddy adds `buddy_messages`, `buddy_questions`,
+  `buddy_interests`, `buddy_sessions`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
 - Schema changes go in the store's constructor as `CREATE TABLE IF NOT EXISTS` plus `ALTER TABLE ...
   ADD COLUMN` guarded by `PRAGMA table_info`. The owner's real data must upgrade in place. Never drop
   or rewrite their tables.

@@ -29,6 +29,8 @@ from library import ACCENT, BG, FG, FG_DIM, GOOD, PANEL
 
 CLAUDE_TIMEOUT = 240  # seconds; reading a long PDF can take a while
 TAG_RE = re.compile(r"\[\[\s*(\w+)\s*:\s*(.*?)\s*\]\]")
+# Markdown markers and emoji, which the plain Tk chat would show as-is or as broken glyphs
+CLEAN_RE = re.compile("\\*\\*|__|`|[\U0001F000-\U0001FAFF☀-➿️]")
 
 PERSONA = """You are Popper (泡泡), a warm, slightly fussy study buddy who lives in the corner of a \
 university student's screen. Think of a caring friend who keeps nudging them to learn, notices what \
@@ -38,7 +40,7 @@ The student studies computer science. Their course materials are in the folders 
 (Read, Glob, Grep). Use them: base questions and explanations on what the courses actually cover, \
 and say which file you used. You cannot change files or run anything, and you don't need to.
 
-Style: short and friendly. One question at a time. Two to five sentences unless the student asks \
+Style: short and friendly, plain text only: no Markdown (no **, #, bullet lists or backticks) and no emoji, because the chat window shows text exactly as written. One question at a time. Two to five sentences unless the student asks \
 for an explanation. No headings. Encourage without flattering; if an answer is wrong, say so kindly \
 and explain the key idea in a few lines.
 
@@ -62,7 +64,7 @@ def split_tags(text):
     tags = {}
     for name, value in TAG_RE.findall(text or ""):
         tags[name.lower()] = value
-    return TAG_RE.sub("", text or "").strip(), tags
+    return CLEAN_RE.sub("", TAG_RE.sub("", text or "")).strip(), tags
 
 
 class ClaudeBridge:
@@ -195,6 +197,31 @@ class BuddyStore:
                         (verdict, due, level + (verdict != "correct"), question_id))
         self.db.commit()
 
+    def due_reviews(self):
+        """Missed questions whose time to try again has come, oldest first."""
+        return self.db.execute("SELECT * FROM buddy_questions WHERE due IS NOT NULL AND due <= ? ORDER BY due",
+                               (time.time(),)).fetchall()
+
+    def take_review(self, question_id):
+        """The missed question is being asked again (as a new question), so it's no longer due."""
+        self.db.execute("UPDATE buddy_questions SET due=NULL WHERE id=?", (question_id,))
+        self.db.commit()
+
+    def interests(self, limit=6):
+        return [r[0] for r in self.db.execute("SELECT topic FROM buddy_interests ORDER BY score DESC, last DESC "
+                                              "LIMIT ?", (limit,))]
+
+    def day_summary(self, start, end):
+        """(questions asked, {verdict: count}, topics) for one day."""
+        rows = self.db.execute("SELECT topic, verdict FROM buddy_questions WHERE ts >= ? AND ts < ?",
+                               (start, end)).fetchall()
+        verdicts = {}
+        for r in rows:
+            if r["verdict"]:
+                verdicts[r["verdict"]] = verdicts.get(r["verdict"], 0) + 1
+        topics = list(dict.fromkeys(r["topic"] for r in rows if r["topic"]))
+        return len(rows), verdicts, topics
+
     def like(self, topic, amount=1.0):
         self.db.execute("INSERT INTO buddy_interests (topic, score, last) VALUES (?, ?, ?) "
                         "ON CONFLICT(topic) DO UPDATE SET score = score + excluded.score, last = excluded.last",
@@ -265,7 +292,8 @@ class ChatWindow:
         self.status = tk.Label(head, bg=BG, fg=ACCENT, font=f("Microsoft YaHei UI", 9))
         self.status.pack(side="left", padx=10)
         for key, cmd in (("buddy_folders", lambda: feature.open_folders()),
-                         ("buddy_snooze", feature.snooze_today), ("buddy_new_question", feature.ask_question)):
+                         ("buddy_snooze", feature.snooze_today), ("buddy_review", feature.review_now),
+                         ("buddy_new_question", feature.ask_question)):
             b = tk.Label(head, text=t(key), bg=PANEL, fg=ACCENT, padx=10, pady=2, cursor="hand2",
                          font=f("Microsoft YaHei UI", 9))
             b.pack(side="right", padx=(6, 0))
