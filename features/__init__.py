@@ -9,5 +9,7 @@ from .journal import JournalFeature
 from .library import LibraryFeature
 from .review import ReviewFeature
 from .todos import TodosFeature
+from .usage import UsageFeature
 
-FEATURES = [BuddyFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature]
+FEATURES = [BuddyFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature,
+            UsageFeature]

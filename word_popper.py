@@ -202,18 +202,22 @@ class App:
                            "senses": tkfont.Font(family="Microsoft YaHei UI")}
         self.frame = tk.Frame(root, bg=BG, padx=14, pady=8)
         self.frame.pack(fill="both", expand=True)
-        self.word_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=self.card_fonts["word"],
+        # top row: the word (or status) on the left, small badges from features on the right
+        self.top_row = tk.Frame(self.frame, bg=BG)
+        self.top_row.pack(fill="x")
+        self.badges = {}
+        self.word_lbl = tk.Label(self.top_row, bg=BG, fg=FG, font=self.card_fonts["word"],
                                  anchor="w", justify="left")
         self.pron_lbl = tk.Label(self.frame, bg=BG, fg=ACCENT, font=self.card_fonts["pron"], anchor="w")
         self.trans_lbl = tk.Label(self.frame, bg=BG, fg=FG, font=self.card_fonts["trans"],
                                   anchor="w", justify="left")
         self.senses_lbl = tk.Label(self.frame, bg=BG, fg=FG_DIM, font=self.card_fonts["senses"],
                                    anchor="w", justify="left")
-        self.word_lbl.pack(fill="x")
+        self.word_lbl.pack(side="left", fill="x", expand=True)
         self.detail_widgets = [self.pron_lbl, self.trans_lbl, self.senses_lbl]
         self.apply_text_size()
 
-        for w in [root, self.frame, self.word_lbl, *self.detail_widgets]:
+        for w in [root, self.frame, self.top_row, self.word_lbl, *self.detail_widgets]:
             w.bind("<ButtonPress-1>", self.on_press)
             w.bind("<B1-Motion>", self.on_drag)
             w.bind("<ButtonRelease-1>", self.on_release)
@@ -265,8 +269,29 @@ class App:
         self.root.geometry(f"+{x}+{bottom - h}")
 
     def set_bg(self, color):
-        for w in [self.root, self.frame, self.word_lbl, *self.detail_widgets]:
+        for w in [self.root, self.frame, self.top_row, self.word_lbl, *self.detail_widgets, *self.badges.values()]:
             w.configure(bg=color)
+
+    def set_badge(self, key, text, fg=FG_DIM, on_click=None):
+        """Show (or with text=None remove) a small label on the right of the card's top row."""
+        badge = self.badges.get(key)
+        if not text:
+            if badge:
+                badge.destroy()
+                del self.badges[key]
+                self.place_window()
+            return
+        if not badge:
+            badge = tk.Label(self.top_row, bg=self.word_lbl.cget("bg"), font=self.card_fonts["pron"],
+                             cursor="hand2")
+            badge.pack(side="right", padx=(10, 0))
+            badge.bind("<Button-3>", self.show_menu)
+            badge.bind("<Enter>", lambda e: self.set_bg(BG_HOVER))
+            badge.bind("<Leave>", lambda e: self.set_bg(BG))
+            self.badges[key] = badge
+        badge.configure(text=text, fg=fg)
+        badge.bind("<Button-1>", lambda e: on_click() if on_click else None)
+        self.place_window()
 
     def expand(self, seconds=EXPANDED_SECONDS):
         for w in self.detail_widgets:

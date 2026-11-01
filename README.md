@@ -56,6 +56,9 @@ screenshot OCR, settings, and spaced-repetition review.
   lets you re-sort any program or site with one click, and past days are re-counted. Shows today,
   this week and a 7-day chart, and adds a section to the journal. Only kept on your computer. Off by
   default.
+- **Claude usage on the card.** A small badge shows how much of your Claude plan's 5-hour limit
+  is used (grey, yellow from 50%, red from 80%); click it for when it resets, or see every limit in
+  the menu. Read from Claude Code's `/usage` every 5 minutes, which uses no quota. Off by default.
 - **Library check-in.** One menu item checks you in or out, whichever applies. Checking in opens
   your goals and to-dos. Checking out tells you how long you stayed and how many tasks you
   finished. The library log has today / this week / your streak, a calendar heatmap, and the new
