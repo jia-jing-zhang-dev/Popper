@@ -6,14 +6,30 @@ along the screen. Dragging it (or the card) moves both; a click does what a clic
 """
 
 import math
+import os
 import random
+import sys
+import time
 import tkinter as tk
 
-from PIL import Image, ImageTk
-
-from mascot import draw
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from .base import Feature
+
+# Frames of FluffyBlob by Jaqueline Martin (CC0), see assets/pet/CREDITS.md
+ASSETS = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                      "assets", "pet")
+MOODS = {                     # mood -> (frame numbers, ms per frame)
+    "happy": ([0, 1, 0, 3], 700),
+    "blink": ([2], 160),
+    "thinking": ([4, 11], 600),
+    "talking": ([10, 13], 300),
+    "worried": ([14, 16], 700),
+    "celebrate": ([2, 5, 6, 5], 220),
+    "sleepy": ([15], 1000),
+}
+HOP = [7, 8, 10, 13, 9, 7]    # squash, rise, stretch, airborne, fall, land
+MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
 
 KEY = "#010203"           # this colour is see-through in the pet window
 KEY_RGB = (1, 2, 3)
@@ -21,13 +37,21 @@ FRAME_MS = 60
 WANDER_MS = (3 * 60_000, 8 * 60_000)
 
 
-def pet_image(mood, size):
-    """The bubble on the see-through colour. Edges are kept hard: a soft edge would blend with the
-    see-through colour into a dark fringe."""
-    rgba = draw(mood, size)
-    base = Image.new("RGB", rgba.size, KEY_RGB)
-    mask = rgba.getchannel("A").point(lambda a: 255 if a > 110 else 0)
-    base.paste(rgba.convert("RGB"), mask=mask)
+def pet_image(frame, size, mark=None):
+    """One frame on the see-through colour. Only nearly opaque pixels are kept: soft edges and the
+    painted shadow would blend with the see-through colour into a dark fringe."""
+    rgba = Image.open(os.path.join(ASSETS, f"frame_{frame:02d}.png")).convert("RGBA")
+    rgba.thumbnail((size, size), Image.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.alpha_composite(rgba, ((size - rgba.width) // 2, size - rgba.height))
+    if mark:
+        d = ImageDraw.Draw(canvas)
+        font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", max(12, size // 4))
+        d.text((size * 0.70, size * 0.02), mark, font=font, fill=(255, 255, 255, 255),
+               stroke_width=max(2, size // 40), stroke_fill=(31, 36, 48, 255))
+    base = Image.new("RGB", canvas.size, KEY_RGB)
+    mask = canvas.getchannel("A").point(lambda a: 255 if a > 200 else 0)
+    base.paste(canvas.convert("RGB"), mask=mask)
     return ImageTk.PhotoImage(base)
 
 
@@ -58,7 +82,8 @@ class PetFeature(Feature):
 class PetWindow:
     def __init__(self, app):
         self.app = app
-        self.size = round(64 * app.scale)
+        self.size = round(84 * app.scale)
+        self.frame = None
         self.images = {}
         self.mood = "happy"
         top = self.top = tk.Toplevel(app.root)
@@ -107,9 +132,21 @@ class PetWindow:
 
     def set_mood(self, mood):
         self.mood = mood
-        if mood not in self.images:
-            self.images[mood] = pet_image(mood, self.size)
-        self.label.configure(image=self.images[mood])
+        self.show_frame()
+
+    def show_frame(self):
+        """Pick the frame for the current mood (or the hop in progress) and show it if it changed."""
+        if self.hop_frames:
+            frame, mark = HOP[min(len(HOP) - 1, (12 - self.hop_frames) // 2)], None
+        else:
+            frames, ms = MOODS.get(self.mood, MOODS["happy"])
+            frame, mark = frames[int(time.time() * 1000 / ms) % len(frames)], MARKS.get(self.mood)
+        if (frame, mark) == self.frame:
+            return
+        self.frame = (frame, mark)
+        if self.frame not in self.images:
+            self.images[self.frame] = pet_image(frame, self.size, mark)
+        self.label.configure(image=self.images[self.frame])
 
     def clamp(self):
         sw, sh = self.top.winfo_screenwidth(), self.top.winfo_screenheight()
@@ -135,7 +172,8 @@ class PetWindow:
                 self.walk_to = None
                 self.save()
             self.app.place_window()
-        bob = round(math.sin(self.phase) * self.size * 0.04)
+        self.show_frame()
+        bob = round(math.sin(self.phase) * self.size * 0.03)
         self.top.geometry(f"+{int(self.x)}+{int(self.y + bob - lift)}")
         self.top.after(FRAME_MS, self.tick)
 

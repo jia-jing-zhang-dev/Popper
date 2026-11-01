@@ -30,7 +30,7 @@ screenshot OCR, settings, and spaced-repetition review.
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
-- **A desktop pet.** 泡泡 stands on your desktop on its own (transparent window): it breathes,
+- **A desktop pet.** 泡泡 (FluffyBlob, a CC0 character) stands on your desktop on its own: it breathes,
   blinks, hops when you click it or look a word up, wanders a little now and then, and dozes late at
   night. The card floats above it as its speech bubble; drag either to move both. Turn it off in
   Settings → Features to get the plain card back.
@@ -235,6 +235,11 @@ narration line needs more room, the picture holds still so the narrator never ta
 ```
 
 Snipping Tool must be in **Rectangle** mode. The script switches it for you.
+
+## Credits
+
+The desktop pet is **FluffyBlob** by Jaqueline Martin (Chibizilla), CC0, from
+[OpenGameArt](https://opengameart.org/content/fluffyblob). See [`assets/pet/CREDITS.md`](assets/pet/CREDITS.md).
 
 ## License
 

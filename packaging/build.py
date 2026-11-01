@@ -36,7 +36,7 @@ def main():
     make_icon(icon)
     subprocess.run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
-        "--name", NAME, "--icon", icon, "--add-data", f"{icon}{os.pathsep}.",
+        "--name", NAME, "--icon", icon, "--add-data", f"{icon}{os.pathsep}.", "--add-data", f"{os.path.join(ROOT, 'assets')}{os.pathsep}assets",
         "--collect-all", "winocr", "--collect-submodules", "winrt", "--collect-data", "certifi",
         "--distpath", DIST, "--workpath", os.path.join(ROOT, "build"), "--specpath", os.path.join(ROOT, "build"),
         os.path.join(ROOT, "word_popper.py"),
