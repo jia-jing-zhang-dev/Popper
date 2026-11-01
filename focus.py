@@ -16,6 +16,7 @@ import os
 import re
 import time
 import tkinter as tk
+from collections import deque
 from ctypes import wintypes
 
 from i18n import t
@@ -185,6 +186,9 @@ class FocusLog:
         self.db.commit()
         self.pending = {}
         self.last_sample = None
+        # the last ~30 minutes of (time, key, window title), in memory only: lets the study buddy
+        # see what you're working on right now. Titles are never written to disk.
+        self.recent = deque(maxlen=400)
 
     def sample(self):
         """Count the seconds since the last sample toward whatever is in front, if you're there."""
@@ -198,6 +202,7 @@ class FocusLog:
         limit = WATCH_IDLE_LIMIT if key.endswith("· lectures") else IDLE_LIMIT
         if idle_seconds() > limit:
             return
+        self.recent.append((now, key, title))
         slot = (int(now // 60), key)
         self.pending[slot] = self.pending.get(slot, 0) + elapsed
 
@@ -208,6 +213,16 @@ class FocusLog:
                             (minute, key, seconds))
         self.pending = {}
         self.db.commit()
+
+    def recent_study_titles(self, minutes=20, limit=5):
+        """Titles of the study windows you spent most time in lately, most first."""
+        since = time.time() - minutes * 60
+        rules = self.rules()
+        seen = {}
+        for ts, key, title in self.recent:
+            if ts >= since and title and self.category(key, rules) == "study" and key != "app:popper":
+                seen[title] = seen.get(title, 0) + 1
+        return [title for title, _ in sorted(seen.items(), key=lambda kv: -kv[1])][:limit]
 
     # ---------- rules
 
