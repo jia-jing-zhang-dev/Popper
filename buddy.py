@@ -1,0 +1,341 @@
+"""Study buddy: Claude, through the owner's own Claude Code login, as a friend who keeps them learning.
+
+Popper runs `claude -p` (Claude Code's one-shot mode) in the background, so it uses the Claude
+subscription the owner is already signed in to; no API key. Claude Code gets read-only tools
+(Read/Glob/Grep) and only the course folders the owner picked, so it can open the lecture they're on
+by itself. Each day is one Claude Code session, resumed for every message, so the chat remembers
+the day's questions.
+
+Replies end with machine-readable tags that Popper strips before showing them:
+  [[topic: ...]] [[source: ...]]   on a new question
+  [[verdict: correct|partial|wrong]] when grading an answer
+  [[interest: ...]]                when the student shows curiosity about something
+"""
+
+import datetime as dt
+import json
+import os
+import queue
+import re
+import shutil
+import subprocess
+import threading
+import time
+import tkinter as tk
+from tkinter import filedialog
+
+from i18n import t
+from library import ACCENT, BG, FG, FG_DIM, GOOD, PANEL
+
+CLAUDE_TIMEOUT = 240  # seconds; reading a long PDF can take a while
+TAG_RE = re.compile(r"\[\[\s*(\w+)\s*:\s*(.*?)\s*\]\]")
+
+PERSONA = """You are Popper (泡泡), a warm, slightly fussy study buddy who lives in the corner of a \
+university student's screen. Think of a caring friend who keeps nudging them to learn, notices what \
+they're working on, and is genuinely curious with them.
+
+The student studies computer science. Their course materials are in the folders you can read \
+(Read, Glob, Grep). Use them: base questions and explanations on what the courses actually cover, \
+and say which file you used. You cannot change files or run anything, and you don't need to.
+
+Style: short and friendly. One question at a time. Two to five sentences unless the student asks \
+for an explanation. No headings. Encourage without flattering; if an answer is wrong, say so kindly \
+and explain the key idea in a few lines.
+
+End your reply with tags on their own line (Popper reads and hides them):
+- When you ask a new question: [[topic: <concept, in English>]] [[source: <file name, or none>]]
+- When you judge an answer to your question: [[verdict: correct|partial|wrong]] [[topic: <concept>]]
+- When the student shows curiosity about something new: [[interest: <topic, in English>]]
+Always write the visible text in {language}."""
+
+
+def find_claude():
+    path = shutil.which("claude")
+    if path:
+        return path
+    guess = os.path.join(os.path.expanduser("~"), ".local", "bin", "claude.exe")
+    return guess if os.path.exists(guess) else None
+
+
+def split_tags(text):
+    """(visible text, {tag: value}) — tags are removed from what the student sees."""
+    tags = {}
+    for name, value in TAG_RE.findall(text or ""):
+        tags[name.lower()] = value
+    return TAG_RE.sub("", text or "").strip(), tags
+
+
+class ClaudeBridge:
+    """Runs one `claude -p` at a time in the background and hands results back on the Tk thread."""
+
+    def __init__(self, app, workdir):
+        self.app = app
+        self.workdir = workdir
+        os.makedirs(workdir, exist_ok=True)
+        self.jobs = queue.Queue()
+        self.busy = False
+        threading.Thread(target=self._worker, daemon=True).start()
+
+    def ask(self, prompt, folders, session_id, on_done):
+        """on_done({"ok", "text", "session_id", "error"}) is called on the Tk thread."""
+        self.jobs.put((prompt, list(folders), session_id, on_done))
+
+    def _worker(self):
+        while True:
+            prompt, folders, session_id, on_done = self.jobs.get()
+            self.busy = True
+            result = self._run(prompt, folders, session_id)
+            self.busy = False
+            self.app.ui_q.put(("call", lambda r=result, f=on_done: f(r)))
+
+    def _run(self, prompt, folders, session_id):
+        exe = find_claude()
+        if not exe:
+            return {"ok": False, "error": t("buddy_no_claude")}
+        language = "Simplified Chinese" if self.app.settings["ui_lang"] == "zh" else "English"
+        cmd = [exe, "-p", prompt, "--output-format", "json",
+               "--tools", "Read,Glob,Grep", "--allowedTools", "Read", "Glob", "Grep",
+               "--strict-mcp-config", "--permission-prompts", "none",
+               "--system-prompt", PERSONA.format(language=language)]
+        for folder in folders:
+            if os.path.isdir(folder):
+                cmd += ["--add-dir", folder]
+        if session_id:
+            cmd += ["--resume", session_id]
+        try:
+            proc = subprocess.run(cmd, cwd=self.workdir, capture_output=True, text=True, encoding="utf-8",
+                                  timeout=CLAUDE_TIMEOUT, stdin=subprocess.DEVNULL,
+                                  creationflags=subprocess.CREATE_NO_WINDOW)
+            data = json.loads(proc.stdout or "{}")
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": t("buddy_timeout")}
+        except (OSError, ValueError) as e:
+            return {"ok": False, "error": f"{t('buddy_failed')} ({e.__class__.__name__})"}
+        if data.get("is_error") or not data.get("result"):
+            message = data.get("result") or proc.stderr.strip()[:200] or t("buddy_failed")
+            if "authenticate" in message.lower() or "log in" in message.lower():
+                message = t("buddy_login")
+            return {"ok": False, "error": message, "session_id": data.get("session_id")}
+        return {"ok": True, "text": data["result"], "session_id": data.get("session_id")}
+
+
+class BuddyStore:
+    """Everything said, the questions asked (with how they went) and the topics the student likes."""
+
+    def __init__(self, db):
+        self.db = db
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS buddy_messages (
+                id      INTEGER PRIMARY KEY,
+                ts      REAL NOT NULL,
+                day     TEXT NOT NULL,
+                role    TEXT NOT NULL,      -- 'buddy' or 'me'
+                kind    TEXT,               -- 'question', 'chat', 'nudge', 'discovery'
+                text    TEXT NOT NULL
+            )""")
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS buddy_questions (
+                id       INTEGER PRIMARY KEY,
+                ts       REAL NOT NULL,
+                topic    TEXT,
+                source   TEXT,
+                question TEXT NOT NULL,
+                verdict  TEXT,              -- correct / partial / wrong, once answered
+                level    INTEGER DEFAULT 0, -- spaced-repetition step for missed topics
+                due      REAL               -- when to come back to it (missed ones only)
+            )""")
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS buddy_interests (
+                topic TEXT PRIMARY KEY,
+                score REAL NOT NULL,
+                last  REAL NOT NULL
+            )""")
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS buddy_sessions (
+                day        TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL
+            )""")
+        self.db.commit()
+
+    def session(self, day):
+        row = self.db.execute("SELECT session_id FROM buddy_sessions WHERE day=?", (day.isoformat(),)).fetchone()
+        return row[0] if row else None
+
+    def set_session(self, day, session_id):
+        self.db.execute("INSERT INTO buddy_sessions (day, session_id) VALUES (?, ?) "
+                        "ON CONFLICT(day) DO UPDATE SET session_id=excluded.session_id", (day.isoformat(), session_id))
+        self.db.commit()
+
+    def say(self, role, text, kind="chat"):
+        self.db.execute("INSERT INTO buddy_messages (ts, day, role, kind, text) VALUES (?, ?, ?, ?, ?)",
+                        (time.time(), dt.date.today().isoformat(), role, kind, text))
+        self.db.commit()
+
+    def messages(self, day):
+        return self.db.execute("SELECT * FROM buddy_messages WHERE day=? ORDER BY ts", (day.isoformat(),)).fetchall()
+
+    def add_question(self, text, topic, source):
+        cur = self.db.execute("INSERT INTO buddy_questions (ts, topic, source, question) VALUES (?, ?, ?, ?)",
+                              (time.time(), topic, source, text))
+        self.db.commit()
+        return cur.lastrowid
+
+    def open_question(self):
+        """The latest question still waiting for an answer (from the last 12 hours)."""
+        return self.db.execute("SELECT * FROM buddy_questions WHERE verdict IS NULL AND ts > ? "
+                               "ORDER BY ts DESC LIMIT 1", (time.time() - 12 * 3600,)).fetchone()
+
+    def grade(self, question_id, verdict):
+        """Record how an answer went; missed topics come back after 1, 3, 7 then 14 days."""
+        steps = [1, 3, 7, 14]
+        row = self.db.execute("SELECT level FROM buddy_questions WHERE id=?", (question_id,)).fetchone()
+        level = row[0] if row else 0
+        due = None if verdict == "correct" else time.time() + steps[min(level, len(steps) - 1)] * 86400
+        self.db.execute("UPDATE buddy_questions SET verdict=?, due=?, level=? WHERE id=?",
+                        (verdict, due, level + (verdict != "correct"), question_id))
+        self.db.commit()
+
+    def like(self, topic, amount=1.0):
+        self.db.execute("INSERT INTO buddy_interests (topic, score, last) VALUES (?, ?, ?) "
+                        "ON CONFLICT(topic) DO UPDATE SET score = score + excluded.score, last = excluded.last",
+                        (topic.strip()[:80], amount, time.time()))
+        self.db.commit()
+
+
+# ---------------------------------------------------------------- windows
+
+class FolderDialog:
+    """Pick which folders the buddy may read."""
+
+    def __init__(self, app, feature):
+        self.app, self.feature = app, feature
+        top = self.top = tk.Toplevel(app.root)
+        top.title(t("buddy_folders_title"))
+        top.configure(bg=BG)
+        top.attributes("-topmost", True)
+        f = app.font
+        tk.Label(top, text=t("buddy_folders_hint"), bg=BG, fg=FG_DIM, font=f("Microsoft YaHei UI", 9),
+                 justify="left", wraplength=int(460 * app.scale)).pack(anchor="w", padx=16, pady=(14, 6))
+        self.list = tk.Listbox(top, bg=PANEL, fg=FG, selectbackground=ACCENT, selectforeground=BG, relief="flat",
+                               highlightthickness=0, width=60, height=8, font=f("Microsoft YaHei UI", 10))
+        self.list.pack(fill="both", expand=True, padx=16)
+        bar = tk.Frame(top, bg=BG)
+        bar.pack(fill="x", padx=16, pady=12)
+        for key, cmd in (("buddy_folders_add", self.add), ("buddy_folders_remove", self.remove)):
+            b = tk.Label(bar, text=t(key), bg=PANEL, fg=ACCENT, padx=12, pady=4, cursor="hand2",
+                         font=f("Microsoft YaHei UI", 10))
+            b.pack(side="left", padx=(0, 8))
+            b.bind("<Button-1>", lambda e, c=cmd: c())
+        top.bind("<Escape>", lambda e: top.destroy())
+        self.refresh()
+
+    def refresh(self):
+        self.list.delete(0, "end")
+        for folder in self.feature.folders():
+            self.list.insert("end", folder)
+
+    def add(self):
+        folder = filedialog.askdirectory(parent=self.top, initialdir=os.path.expanduser("~\\Desktop"))
+        if folder:
+            self.feature.set_folders(self.feature.folders() + [os.path.normpath(folder)])
+            self.refresh()
+
+    def remove(self):
+        for i in reversed(self.list.curselection()):
+            folders = self.feature.folders()
+            del folders[i]
+            self.feature.set_folders(folders)
+        self.refresh()
+
+
+class ChatWindow:
+    """A small chat with the buddy. The input sits below the transcript and never moves."""
+
+    def __init__(self, app, feature):
+        self.app, self.feature = app, feature
+        top = self.top = tk.Toplevel(app.root)
+        top.title(t("buddy_title"))
+        top.configure(bg=BG)
+        top.attributes("-topmost", True)
+        s, f = app.scale, app.font
+
+        head = tk.Frame(top, bg=BG)
+        head.pack(fill="x", padx=14, pady=(10, 6))
+        tk.Label(head, text=t("buddy_title"), bg=BG, fg=FG, font=f("Microsoft YaHei UI", 14)).pack(side="left")
+        self.status = tk.Label(head, bg=BG, fg=ACCENT, font=f("Microsoft YaHei UI", 9))
+        self.status.pack(side="left", padx=10)
+        for key, cmd in (("buddy_folders", lambda: feature.open_folders()),
+                         ("buddy_snooze", feature.snooze_today), ("buddy_new_question", feature.ask_question)):
+            b = tk.Label(head, text=t(key), bg=PANEL, fg=ACCENT, padx=10, pady=2, cursor="hand2",
+                         font=f("Microsoft YaHei UI", 9))
+            b.pack(side="right", padx=(6, 0))
+            b.bind("<Button-1>", lambda e, c=cmd: c())
+
+        # input first, packed at the bottom, so the growing transcript never pushes it
+        bottom = tk.Frame(top, bg=BG)
+        bottom.pack(side="bottom", fill="x", padx=14, pady=(6, 12))
+        self.input = tk.Text(bottom, bg=PANEL, fg=FG, insertbackground=FG, relief="flat", height=3, width=1, wrap="word",
+                             padx=int(8 * s), pady=int(6 * s), font=f("Microsoft YaHei UI", 11), highlightthickness=0)
+        self.input.pack(side="left", fill="x", expand=True)
+        self.input.bind("<Return>", self.send)
+        self.input.bind("<Shift-Return>", lambda e: None)  # newline
+        send = tk.Label(bottom, text=t("buddy_send"), bg=GOOD, fg=BG, padx=14, cursor="hand2",
+                        font=f("Microsoft YaHei UI", 11))
+        send.pack(side="left", fill="y", padx=(8, 0))
+        send.bind("<Button-1>", self.send)
+
+        body = tk.Frame(top, bg=PANEL)
+        body.pack(fill="both", expand=True, padx=14)
+        self.view = tk.Text(body, bg=PANEL, fg=FG, relief="flat", wrap="word", cursor="arrow", width=1, height=1,
+                            padx=int(12 * s), pady=int(10 * s), spacing1=int(2 * s), spacing3=int(4 * s),
+                            font=f("Microsoft YaHei UI", 11), highlightthickness=0)
+        scroll = tk.Scrollbar(body, command=self.view.yview)
+        self.view.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.view.pack(side="left", fill="both", expand=True)
+        self.view.tag_configure("buddy_name", foreground=GOOD, font=f("Microsoft YaHei UI Semibold", 10),
+                                spacing1=int(10 * s))
+        self.view.tag_configure("me_name", foreground=ACCENT, font=f("Microsoft YaHei UI Semibold", 10),
+                                spacing1=int(10 * s))
+        self.view.tag_configure("note", foreground=FG_DIM, font=f("Microsoft YaHei UI", 9))
+
+        top.bind("<Escape>", lambda e: top.destroy())
+        top.geometry(f"{int(560 * s)}x{int(620 * s)}")
+        self.reload()
+        self.set_busy(feature.bridge.busy or feature.waiting)
+        top.lift()
+        top.focus_force()
+        self.input.focus_set()
+
+    def reload(self):
+        v = self.view
+        v.configure(state="normal")
+        v.delete("1.0", "end")
+        rows = self.feature.store.messages(dt.date.today())
+        if not rows:
+            v.insert("end", t("buddy_empty") + "\n", "note")
+        for r in rows:
+            self.add_line(r["role"], r["text"], scroll=False)
+        v.configure(state="disabled")
+        v.see("end")
+
+    def add_line(self, role, text, scroll=True):
+        v = self.view
+        v.configure(state="normal")
+        name = t("buddy_name") if role == "buddy" else t("buddy_me")
+        v.insert("end", f"{name}\n", "buddy_name" if role == "buddy" else "me_name")
+        v.insert("end", text.strip() + "\n")
+        v.configure(state="disabled")
+        if scroll:
+            v.see("end")
+
+    def set_busy(self, busy):
+        if self.top.winfo_exists():
+            self.status.configure(text=t("buddy_thinking") if busy else "")
+
+    def send(self, _=None):
+        text = self.input.get("1.0", "end").strip()
+        if text:
+            self.input.delete("1.0", "end")
+            self.feature.chat(text)
+        return "break"  # keep Enter from adding a newline

@@ -3,10 +3,11 @@
 To add a feature, copy _template.py, then add its class here.
 """
 
+from .buddy import BuddyFeature
 from .focus import FocusFeature
 from .journal import JournalFeature
 from .library import LibraryFeature
 from .review import ReviewFeature
 from .todos import TodosFeature
 
-FEATURES = [ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature]
+FEATURES = [BuddyFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature]

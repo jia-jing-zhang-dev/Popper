@@ -165,6 +165,8 @@ class App:
             pass
 
         self.script_path = SCRIPT_PATH
+        self.data_dir = DATA_DIR
+        self.notice = None  # (text, on_click) shown on the card until clicked
         self.settings = load_settings()
         i18n.set_language(self.settings["ui_lang"])
         self.speaker = Speaker(on_play=log_event)
@@ -287,7 +289,21 @@ class App:
         text = f"🔊 {self.current['word']}" if self.current else f"🔊 {t('idle')}"
         if not self.settings["listening"]:
             text += f"  {t('paused')}"
+        if self.notice:
+            text += f"   ·  {self.notice[0]}"
         self.word_lbl.configure(text=text)
+
+    def notify(self, text, on_click):
+        """Keep a short note on the card until it's clicked; clicking the card then runs on_click."""
+        self.notice = (text, on_click)
+        self.update_status()
+        self.place_window()
+
+    def clear_notice(self):
+        if self.notice:
+            self.notice = None
+            self.update_status()
+            self.place_window()
 
     def flash(self, message, ms=1500):
         self.word_lbl.configure(text=message)
@@ -317,6 +333,10 @@ class App:
             self.settings["x"] = self.root.winfo_x()
             self.settings["bottom"] = self.root.winfo_y() + self.root.winfo_height()
             save_settings(self.settings)
+        elif self.notice:
+            on_click = self.notice[1]
+            self.clear_notice()
+            on_click()
         elif self.current:
             self.speak_item(self.current)
             self.expand()
@@ -377,6 +397,9 @@ class App:
         wanted = LANGUAGES[learn][3].split("-")[0].lower()
         if not ocr_tag_for(learn).lower().startswith(wanted):
             messagebox.showinfo(t("idle"), t("ocr_missing", lang=label(learn)), parent=self.root)
+
+    def save(self):
+        save_settings(self.settings)
 
     def toggle_listening(self):
         self.settings["listening"] = not self.settings["listening"]
@@ -522,6 +545,8 @@ class App:
                     else:
                         self.update_status()
                         self.place_window()
+                elif msg[0] == "call":  # a function a worker thread wants run on the Tk thread
+                    msg[1]()
                 elif msg[0] == "result":
                     self.on_result(msg[1], msg[2])
         except queue.Empty:
