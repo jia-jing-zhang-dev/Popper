@@ -64,6 +64,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `library.py` | Library check-in (`LibraryLog`), goals and dated to-dos with stopwatches (`TodoList`), `DatePicker`, `Celebration`, `TodoWindow`, `LibraryWindow` |
 | `buddy.py` | Study buddy: `ClaudeBridge` runs `claude -p` (one job at a time, on a worker thread, results back via `app.ui_q` `"call"`), `BuddyStore` (messages, questions with review dates, interests, one Claude session per day), chat and folder windows |
 | `features/usage.py` | Claude plan usage badge: parses `claude -p /usage` (local, no quota) every 5 min; `app.set_badge` puts it on the card's top row |
+| `mascot.py` | The bubble on the card, drawn with PIL per mood (happy, blink, thinking, talking, worried, celebrate, sleepy); `app.mood()` picks it, `app.set_mood(mood, seconds)` shows one for a while |
 | `focus.py` | Study-time detection: samples the foreground window and idle time every 5 s into per-minute buckets keyed by program/site; default rules plus the owner's overrides decide what counts |
 | `journal.py` | Journal store and window; a page is the sections of every feature that's on |
 | `settings_window.py` | Settings UI, Start-with-Windows shortcut |

@@ -358,6 +358,7 @@ class Celebration:
     """A small card that says well done, and how many days it took since you wrote the thing down."""
 
     def __init__(self, app, parent, title, created, done_at, extra, big=False):
+        app.set_mood("celebrate", 8)  # the bubble on the card celebrates too
         s = app.scale
         top = self.top = tk.Toplevel(parent)
         top.overrideredirect(True)

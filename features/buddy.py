@@ -240,14 +240,14 @@ class BuddyFeature(Feature):
             else:
                 self.ask_question()
 
-    def local_message(self, text, kind):
+    def local_message(self, text, kind, mood="talking"):
         """A message Popper writes itself (no Claude call)."""
         self.store.say("buddy", text, kind)
         win = self.window("chat")
         if win:
             win.add_line("buddy", text)
         else:
-            self.app.notify(t("buddy_has_word"), self.open_chat)
+            self.app.notify(t("buddy_has_word"), self.open_chat, mood)
 
     def morning(self):
         today = dt.date.today()
@@ -269,9 +269,10 @@ class BuddyFeature(Feature):
 
     def evening(self):
         studied = self.studied_since(day_range(dt.date.today())[0])
-        self.local_message(t("buddy_evening", minutes=int(studied // 60)), "evening")
+        self.local_message(t("buddy_evening", minutes=int(studied // 60)), "evening", mood="worried")
 
     def _busy(self, busy):
         win = self.window("chat")
         if win:
             win.set_busy(busy)
+        self.app.refresh_mood()  # the bubble thinks while Claude does

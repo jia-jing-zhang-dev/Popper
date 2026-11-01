@@ -13,6 +13,7 @@ import ctypes
 import json
 import os
 import queue
+import random
 import re
 import sys
 import threading
@@ -26,6 +27,7 @@ from PIL import Image, ImageGrab
 import i18n
 from i18n import t
 from languages import LANGUAGES, label, normalize, voice_for
+from mascot import Mascot
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
 from settings_window import SettingsWindow, rename_startup_link
 from speech import Speaker
@@ -206,6 +208,10 @@ class App:
         self.top_row = tk.Frame(self.frame, bg=BG)
         self.top_row.pack(fill="x")
         self.badges = {}
+        self.mascot = Mascot()
+        self.mood_override = None  # (mood, until) for a short-lived face, e.g. celebrating
+        self.avatar = tk.Label(self.top_row, bg=BG, cursor="hand2")
+        self.avatar.pack(side="left", padx=(0, 8))
         self.word_lbl = tk.Label(self.top_row, bg=BG, fg=FG, font=self.card_fonts["word"],
                                  anchor="w", justify="left")
         self.pron_lbl = tk.Label(self.frame, bg=BG, fg=ACCENT, font=self.card_fonts["pron"], anchor="w")
@@ -217,7 +223,7 @@ class App:
         self.detail_widgets = [self.pron_lbl, self.trans_lbl, self.senses_lbl]
         self.apply_text_size()
 
-        for w in [root, self.frame, self.top_row, self.word_lbl, *self.detail_widgets]:
+        for w in [root, self.frame, self.top_row, self.avatar, self.word_lbl, *self.detail_widgets]:
             w.bind("<ButtonPress-1>", self.on_press)
             w.bind("<B1-Motion>", self.on_drag)
             w.bind("<ButtonRelease-1>", self.on_release)
@@ -227,6 +233,7 @@ class App:
 
         self.update_status()
         self.place_window()
+        root.after(4000, self.blink_loop)
         root.after(300, self.poll_clipboard)
         root.after(30, self.poll_hotkey)
         root.after(100, self.poll_ui_queue)
@@ -256,6 +263,8 @@ class App:
         wrap = int(320 * self.scale)
         for w in [self.word_lbl, self.trans_lbl, self.senses_lbl]:
             w.configure(wraplength=wrap)
+        if hasattr(self, "avatar"):
+            self.refresh_mood()
 
     def place_window(self):
         """Keep the card's bottom-left corner fixed so it grows upwards."""
@@ -269,7 +278,8 @@ class App:
         self.root.geometry(f"+{x}+{bottom - h}")
 
     def set_bg(self, color):
-        for w in [self.root, self.frame, self.top_row, self.word_lbl, *self.detail_widgets, *self.badges.values()]:
+        for w in [self.root, self.frame, self.top_row, self.avatar, self.word_lbl, *self.detail_widgets,
+                  *self.badges.values()]:
             w.configure(bg=color)
 
     def set_badge(self, key, text, fg=FG_DIM, on_click=None):
@@ -311,16 +321,49 @@ class App:
         self.place_window()
 
     def update_status(self):
-        text = f"🔊 {self.current['word']}" if self.current else f"🔊 {t('idle')}"
+        text = self.current["word"] if self.current else t("idle")
         if not self.settings["listening"]:
             text += f"  {t('paused')}"
         if self.notice:
             text += f"   ·  {self.notice[0]}"
         self.word_lbl.configure(text=text)
+        self.refresh_mood()
 
-    def notify(self, text, on_click):
+    # ---------- the bubble's face
+
+    def mood(self):
+        if self.mood_override and time.time() < self.mood_override[1]:
+            return self.mood_override[0]
+        if not self.settings["listening"]:
+            return "sleepy"
+        if self.notice:
+            return self.notice[2]
+        buddy = next((f for f in getattr(self, "features", []) if f.id == "buddy"), None)
+        if buddy and buddy.on and buddy.waiting:
+            return "thinking"
+        return "happy"
+
+    def refresh_mood(self, blink=False):
+        mood = self.mood()
+        if blink and mood == "happy":
+            mood = "blink"
+        size = round(26 * self.scale)
+        self.avatar.configure(image=self.mascot.image(mood, size))
+
+    def set_mood(self, mood, seconds):
+        """Show a face for a while (then back to whatever fits)."""
+        self.mood_override = (mood, time.time() + seconds)
+        self.refresh_mood()
+        self.root.after(int(seconds * 1000) + 50, self.refresh_mood)
+
+    def blink_loop(self):
+        self.refresh_mood(blink=True)
+        self.root.after(160, self.refresh_mood)
+        self.root.after(random.randint(3500, 7000), self.blink_loop)
+
+    def notify(self, text, on_click, mood="talking"):
         """Keep a short note on the card until it's clicked; clicking the card then runs on_click."""
-        self.notice = (text, on_click)
+        self.notice = (text, on_click, mood)
         self.update_status()
         self.place_window()
 

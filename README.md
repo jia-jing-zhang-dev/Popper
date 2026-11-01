@@ -30,6 +30,9 @@ screenshot OCR, settings, and spaced-repetition review.
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
+- **A face on the card.** 泡泡 is a little bubble that blinks, thinks while the study buddy is
+  working, opens its mouth when it has a question, looks worried when you haven't studied, dozes when
+  paused, and celebrates when you finish something.
 - **A card that stays put.** The card sits quietly in a corner. Click it to hear the word again,
   drag it anywhere, and right-click it for everything else.
 
