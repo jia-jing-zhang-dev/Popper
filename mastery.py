@@ -340,7 +340,9 @@ class SlideBuilder:
     def after_scan(self, found):
         for course, paths in found.items():
             self.store.sync_files(course, paths)
-        self.courses = list(found)
+        # the course whose exam is nearest gets its checklist first
+        goals = self.app.todos.open_goals()
+        self.courses = sorted(found, key=lambda c: (exam_days(c, goals) is None, exam_days(c, goals) or 0))
         self.step()
 
     def step(self):
