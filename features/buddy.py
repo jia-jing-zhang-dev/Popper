@@ -8,7 +8,7 @@ import time
 
 import exercise
 import mastery
-from buddy import BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
+from buddy import SLIDES_RE, BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
 from focus import day_range, idle_seconds
 from i18n import t
 from journal import Line, Section
@@ -177,11 +177,17 @@ class BuddyFeature(Feature):
             self.store.set_session(day, result["session_id"])
         raw, code = exercise.take_code(result["text"])
         text, tags = split_tags(raw)
+        # Popper adds its own slides line (a link); drop any Claude wrote itself
+        text = "\n".join(line for line in text.splitlines() if not SLIDES_RE.match(line.strip())).strip()
         topic_id = self.pending_topic
         if "verdict" in tags:  # an explanation of an answer: about the question's topic (read before grading)
             question = self.store.open_question()
             topic_id = question["topic_id"] if question else None
+        verdict = tags.get("verdict", "").lower()
+        before = self.mastery.topic(topic_id) if topic_id and verdict else None
         self.on_tags(text, tags, kind)
+        if verdict in ("correct", "partial", "wrong"):
+            text = self.badge(verdict, before) + "\n" + text
         if code:
             text += "\n" + self.save_exercise(tags, code, text, topic_id)
         slides_note = self.show_slides(tags, topic_id)
@@ -194,6 +200,7 @@ class BuddyFeature(Feature):
         win = self.window("chat")
         if win:
             win.add_line("buddy", text)
+            win.set_context(self.current_context())
         elif kind != "chat":
             self.app.notify(t("buddy_has_message"), self.open_chat)
 
@@ -324,6 +331,23 @@ class BuddyFeature(Feature):
             return t("exercise_opened", name=name)
         self.pending_exercise = (folder, main)
         return t("exercise_saved", name=name)
+
+    def badge(self, verdict, before):
+        """The coloured first line of graded feedback: how it went, and how the topic moved."""
+        line = t("verdict_" + verdict)
+        after = self.mastery.topic(before["id"]) if before else None
+        if after:
+            line += "  ·  " + t("mastery_move", topic=after["topic"], before=t("status_" + status(before)),
+                                after=t("status_" + status(after)))
+        return line
+
+    def current_context(self):
+        """What the open question is about, for the bar above the input."""
+        q = self.store.open_question()
+        row = self.mastery.topic(q["topic_id"]) if q and q["topic_id"] else None
+        if row:
+            return t("buddy_now", topic=row["topic"], course=row["course"])
+        return t("buddy_pick_hint")
 
     def quick(self, action):
         """The chat's one-click replies: a hint, an explanation (counts as not known), or a new question."""

@@ -35,6 +35,7 @@ CLEAN_RE = re.compile("\\*\\*|__|`|[\U0001F000-\U0001FAFF☀-➿️]")
 OPTION_RE = re.compile(r"^\s*\(?([A-Ha-h])[).:]\s+\S")
 SLIDES_RE = re.compile(r"^[（(](?:Slides|课件)[:：]\s*(.+?\.(?:pdf|pptx))[，,]\s*(?:slides|第)\s*([\d\s,–-]+)", re.I)
 NOTE_RE = re.compile(r"^[（(].*[）)]$")
+BADGE_RE = re.compile(r"^([✓~✗]) ")  # the verdict line Popper puts on top of graded feedback
 
 PERSONA = """You are Popper (泡泡), a warm, slightly fussy study buddy who lives in the corner of a university student's screen. Think of a caring friend who keeps nudging them to learn, notices what they're working on, and is genuinely curious with them. Your goal: before each exam the student truly understands everything on that course's lecture slides.
 
@@ -43,7 +44,7 @@ The student studies computer science. Their course materials are in the folders 
 Questions test understanding, not recall (Bloom's understand and apply levels): ask the student to explain why, apply an idea to a small new example, compare two ideas, predict what happens, or trace a short piece of code. Never ask for a definition word for word. When you judge an answer, ask for or give the reasoning, not just the result.
 
 Style: short and friendly, plain text only: no Markdown (no **, #, bullets or backticks) and no emoji. The chat keeps your line breaks, so lay things out in short lines, never one long paragraph:
-- A question: at most one short line of setup, a blank line, then the question itself on one line ending with "?". About half the time make it multiple choice: three or four options, each on its own line as "A) ...", "B) ...", and ask the student to pick one and say why in a sentence (the student clicks an option to answer). Code goes on its own lines, each indented by four spaces. Under 80 words in all.
+- A question: the student already has the slides open beside the chat (Popper opens them), so don't restate or summarise them and don't name the file; refer to a slide number if needed. Ask exactly one thing: no second question, no "also", no "for contrast". At most one short line of setup, a blank line, then the question on one line ending with "?" (the last line before any options). About half the time make it multiple choice: three or four options, each on its own line as "A) ...", "B) ...", and ask the student to pick one and say why in a sentence (the student clicks an option to answer). Code goes on its own lines, each indented by four spaces. Under 80 words in all.
 - Feedback on an answer: a first line of a few words (e.g. "Not quite." or "Yes, exactly."), then the key idea in two to four short lines. If they picked an option without saying why, ask why in one line.
 One question at a time. No headings. Encourage without flattering.
 
@@ -322,13 +323,16 @@ class ChatWindow:
         # one-click replies to the current question, fixed above the input
         quick = tk.Frame(top, bg=BG)
         quick.pack(side="bottom", fill="x", padx=14, pady=(6, 0))
+        self.quick_buttons = []
         for key in ("hint", "explain", "skip"):
             b = tk.Label(quick, text=t("buddy_" + key), bg=PANEL, fg=ACCENT, padx=10, pady=2, cursor="hand2",
                          font=f("Microsoft YaHei UI", 9))
             b.pack(side="left", padx=(0, 6))
             b.bind("<Button-1>", lambda e, k=key: feature.quick(k))
-        tk.Label(quick, text=t("buddy_pick_hint"), bg=BG, fg=FG_DIM,
-                 font=f("Microsoft YaHei UI", 9)).pack(side="left", padx=(6, 0))
+            self.quick_buttons.append(b)
+        self.context = tk.Label(quick, text=t("buddy_pick_hint"), bg=BG, fg=FG_DIM, anchor="w",
+                                font=f("Microsoft YaHei UI", 9))
+        self.context.pack(side="left", fill="x", expand=True, padx=(6, 0))
         self.input = tk.Text(bottom, bg=PANEL, fg=FG, insertbackground=FG, relief="flat", height=3, width=1, wrap="word",
                              padx=int(8 * s), pady=int(6 * s), font=f("Microsoft YaHei UI", 11), highlightthickness=0)
         self.input.pack(side="left", fill="x", expand=True)
@@ -359,12 +363,18 @@ class ChatWindow:
         self.view.tag_configure("code", font=f("Consolas", 10), background="#20252f", lmargin1=int(10 * s),
                                 lmargin2=int(10 * s))
         self.view.tag_configure("link", foreground=ACCENT, underline=True, font=f("Microsoft YaHei UI", 9))
+        self.view.tag_configure("me_text", foreground="#d6e9ff", lmargin1=int(24 * s), lmargin2=int(24 * s))
+        self.view.tag_configure("thinking", foreground=FG_DIM, font=f("Microsoft YaHei UI", 10) + ("italic",),
+                                spacing1=int(10 * s))
+        for kind, color in (("✓", GOOD), ("~", "#f0b85a"), ("✗", "#e57373")):
+            self.view.tag_configure("badge" + kind, foreground=color, font=f("Microsoft YaHei UI", 10) + ("bold",))
         self.tags = 0
 
         top.bind("<Escape>", lambda e: top.destroy())
         top.geometry(f"{int(700 * s)}x{int(620 * s)}")
         self.reload()
         self.set_busy(feature.bridge.busy or feature.waiting)
+        self.set_context(feature.current_context())
         top.lift()
         top.focus_force()
         self.input.focus_set()
@@ -384,15 +394,17 @@ class ChatWindow:
     def add_line(self, role, text, scroll=True):
         v = self.view
         v.configure(state="normal")
+        start = v.index("end-1c")
         name = t("buddy_name") if role == "buddy" else t("buddy_me")
         v.insert("end", f"{name}\n", "buddy_name" if role == "buddy" else "me_name")
         if role == "buddy":
             self.add_buddy_text(text)
         else:
-            v.insert("end", text.strip() + "\n")
+            v.insert("end", text.strip() + "\n", "me_text")
         v.configure(state="disabled")
         if scroll:
             v.see("end")
+            v.see(start)  # a long reply is read from its start, not its end
 
     def add_buddy_text(self, text):
         """Lay out a reply: the question in bold, clickable answer options, code blocks, a link to the slides."""
@@ -400,7 +412,10 @@ class ChatWindow:
         lines = text.strip().splitlines()
         while lines and not lines[-1].strip():
             lines.pop()
-        for line in lines:
+        for n, line in enumerate(lines):
+            if n == 0 and BADGE_RE.match(line):
+                v.insert("end", line.strip() + "\n", "badge" + line[0])
+                continue
             m = OPTION_RE.match(line)
             slides = SLIDES_RE.match(line.strip())
             self.tags += 1
@@ -435,8 +450,23 @@ class ChatWindow:
         self.input.mark_set("insert", "end-1c")
 
     def set_busy(self, busy):
+        """While Claude works: a "thinking" line at the end of the chat, and the quick replies greyed out."""
+        if not self.top.winfo_exists():
+            return
+        self.status.configure(text=t("buddy_thinking") if busy else "")
+        for b in self.quick_buttons:
+            b.configure(fg=FG_DIM if busy else ACCENT, cursor="arrow" if busy else "hand2")
+        v = self.view
+        v.configure(state="normal")
+        v.delete(*v.tag_ranges("thinking")[:2]) if v.tag_ranges("thinking") else None
+        if busy:
+            v.insert("end", t("buddy_thinking_line") + "\n", "thinking")
+            v.see("end")
+        v.configure(state="disabled")
+
+    def set_context(self, text):
         if self.top.winfo_exists():
-            self.status.configure(text=t("buddy_thinking") if busy else "")
+            self.context.configure(text=text)
 
     def send(self, _=None):
         text = self.input.get("1.0", "end").strip()
