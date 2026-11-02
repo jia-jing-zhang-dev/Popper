@@ -86,6 +86,10 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 - Academic content (questions, feedback, explanations) is always English; casual chat follows `ui_lang`.
   Questions target slide topics from the mastery checklist: course on screen, else mostly the nearest exam
   (an open goal whose title contains the course code), shaky and not-yet-covered topics first.
+- The chat lays replies out from plain text (`ChatWindow.add_buddy_text`): a line ending in "?" is bold,
+  `A) ...` lines are clickable options (they start the answer, the student adds why), 4-space lines are code,
+  the `(Slides: deck, slides N)` line reopens the slides. The persona asks Claude for that layout. Below the
+  transcript sit fixed one-click replies (hint, explain, skip).
 - Questions and explanations about slides open the deck at that slide (`mastery.open_slides`: PDFs in Edge with
   `#page=N`), from the topic's slide range or a `[[source]]` + `[[slides: N-M]]` tag; while the chat is closed
   this waits until it opens, and the same deck page isn't opened twice in a row.

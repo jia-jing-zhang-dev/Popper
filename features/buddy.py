@@ -3,6 +3,7 @@
 import datetime as dt
 import os
 import random
+import re
 import threading
 import time
 
@@ -259,6 +260,9 @@ class BuddyFeature(Feature):
             return ""
         same = row and row["path"] == deck
         slides = tags.get("slides") or (row["slides"] if same else "") or "1"
+        ends = re.findall(r"\d+", slides)
+        if len(ends) == 2 and ends[0] == ends[1]:  # "11-11" reads oddly
+            slides = ends[0]
         if self.window("chat"):
             self.open_slides(deck, slides)
         else:
@@ -289,6 +293,27 @@ class BuddyFeature(Feature):
             return t("exercise_opened", name=name)
         self.pending_exercise = (folder, main)
         return t("exercise_saved", name=name)
+
+    def quick(self, action):
+        """The chat's one-click replies: a hint, an explanation (counts as not known), or a new question."""
+        if self.waiting or self.bridge.busy:
+            return
+        if action == "skip":
+            self.ask_question()
+            return
+        label = t("buddy_" + action)
+        self.store.say("me", label)
+        win = self.window("chat")
+        if win:
+            win.add_line("me", label)
+        self.send(t("buddy_say_" + action), "chat")
+
+    def reopen_slides(self, name, slides):
+        """A click on the slides line in the chat."""
+        path = self.mastery.deck(name)
+        if path:
+            self.shown_slides = None
+            self.open_slides(path, slides)
 
     def ask_about(self, topic_id):
         """From the checklist: a question on that topic, in the chat."""
