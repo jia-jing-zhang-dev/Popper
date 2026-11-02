@@ -6,11 +6,12 @@ To add a feature, copy _template.py, then add its class here.
 from .buddy import BuddyFeature
 from .focus import FocusFeature
 from .journal import JournalFeature
+from .leetcode import LeetCodeFeature
 from .library import LibraryFeature
 from .pet import PetFeature
 from .review import ReviewFeature
 from .todos import TodosFeature
 from .usage import UsageFeature
 
-FEATURES = [PetFeature, BuddyFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature,
+FEATURES = [PetFeature, BuddyFeature, LeetCodeFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature,
             UsageFeature]

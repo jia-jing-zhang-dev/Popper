@@ -17,3 +17,6 @@ buddy/
 
 # coding exercises the study buddy sets up
 exercises/
+
+# LeetCode practice folders (leetcode-py)
+leetcode/
