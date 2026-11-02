@@ -30,6 +30,8 @@ KNOWN = 0.85                  # at or above this, the topic counts as understood
 RECHECK_DAYS = [3, 7, 14]     # spaced re-checks of understood topics
 COURSE_RE = re.compile(r"\b([A-Z]{2,4})\s*-?\s*(\d{3})\b")
 SLIDE_EXT = (".pdf", ".pptx")
+EXAM_RE = re.compile(r"(?i)midterm|exam|final|practice|sample|unit test|考试")  # past exams by file name
+MAX_PAST_EXAMS = 6
 SKIP_DIRS = {".git", ".vscode", "node_modules", "__pycache__", ".venv"}
 MAX_FILE_MB = 40              # textbooks are bigger than any slide deck
 MAX_CANDIDATES = 200
@@ -155,6 +157,32 @@ def open_slides(path, slides):
             subprocess.Popen([edge, url], creationflags=subprocess.CREATE_NO_WINDOW)
             return
     os.startfile(path)
+
+
+def past_exams(folder, out_dir, workdir):
+    """Text copies of the past exams in a course folder (files named midterm/exam/sample...), relative to
+    `workdir`. Extracted once; the same exam saved under two names counts once."""
+    found, seen = [], set()
+    os.makedirs(out_dir, exist_ok=True)
+    for path in candidate_files(folder):
+        if not EXAM_RE.search(os.path.basename(path)) or not path.lower().endswith(".pdf"):
+            continue
+        dst = os.path.join(out_dir, os.path.splitext(os.path.basename(path))[0] + ".txt")
+        try:
+            if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(path):
+                with open(dst, "w", encoding="utf-8") as fh:
+                    fh.write(extract_text(path))
+            with open(dst, encoding="utf-8") as fh:
+                text = fh.read()
+        except Exception:  # unreadable file: skip it
+            continue
+        key = re.sub(r"\s", "", text)[:2000]
+        if text and key not in seen:
+            seen.add(key)
+            found.append(os.path.relpath(dst, workdir))
+        if len(found) >= MAX_PAST_EXAMS:
+            break
+    return found
 
 
 def parse_json(text):

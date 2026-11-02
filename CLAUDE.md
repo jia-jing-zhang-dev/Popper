@@ -86,6 +86,10 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 - Academic content (questions, feedback, explanations) is always English; casual chat follows `ui_lang`.
   Questions target slide topics from the mastery checklist: course on screen, else mostly the nearest exam
   (an open goal whose title contains the course code), shaky and not-yet-covered topics first.
+- Exam scope: `mastery_files.exam` per deck (toggled in the checklist); questions and readiness use only the
+  exam's decks. Past exams (PDFs named midterm/exam/sample... in a course folder) are extracted to
+  `DATA_DIR/buddy/exams/` (`mastery.past_exams`, duplicates dropped): topic questions grep up to two of them for
+  style, and the chat's "Past exam" button asks real problems from them and grades them.
 - The chat lays replies out from plain text (`ChatWindow.add_buddy_text`): a line ending in "?" is bold,
   `A) ...` lines are clickable options (they start the answer, the student adds why), 4-space lines are code,
   the `(Slides: deck, slides N)` line reopens the slides. The persona asks Claude for that layout. Below the

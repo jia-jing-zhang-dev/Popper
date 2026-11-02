@@ -12,7 +12,7 @@ from buddy import BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
 from focus import day_range, idle_seconds
 from i18n import t
 from journal import Line, Section
-from mastery import MasteryStore, MasteryWindow, SlideBuilder, course_code, exam_days, status
+from mastery import MasteryStore, MasteryWindow, SlideBuilder, course_code, exam_days, past_exams, status
 
 from .base import Feature
 
@@ -47,6 +47,7 @@ class BuddyFeature(Feature):
         self.pending_slides = None        # (deck, slides) to show when the chat opens
         self.shown_slides = None          # the last (deck, first slide) shown, so it isn't opened twice
         self.tools = {}
+        self.exams_cache = {}             # course -> (time, [past exam text files])
 
         def detect():
             tools = exercise.detect_tools()
@@ -227,6 +228,7 @@ class BuddyFeature(Feature):
             prompt = t("buddy_prompt_topic", topic=row["topic"], course=row["course"],
                        deck=os.path.basename(row["path"] or ""), file=row["text_file"] or row["path"] or "?",
                        slides=row["slides"] or "?", level=t("buddy_level_" + status(row)))
+            prompt += self.past_style(row["course"])
         else:
             prompt = t("buddy_prompt_question")
             titles = self.studying_now()
@@ -245,10 +247,42 @@ class BuddyFeature(Feature):
             self.pending_topic = row["id"]
             prompt = t("buddy_prompt_exercise", topic=row["topic"], course=row["course"],
                        deck=os.path.basename(row["path"] or ""), file=row["text_file"] or row["path"] or "?",
-                       slides=row["slides"] or "?")
+                       slides=row["slides"] or "?") + self.past_style(row["course"])
         else:
             prompt = t("buddy_prompt_exercise_any")
         self.send(prompt, "question")
+
+    def past_exams(self, course):
+        """The course's past exams as text files (cached for an hour; new files are picked up after that)."""
+        cached = self.exams_cache.get(course)
+        if cached and time.time() - cached[0] < 3600:
+            return cached[1]
+        folder = next((f for f in self.folders() if course_code(f) == course), None)
+        files = past_exams(folder, os.path.join(self.bridge.workdir, "exams", course.replace(" ", "_")),
+                           self.bridge.workdir) if folder and os.path.isdir(folder) else []
+        self.exams_cache[course] = (time.time(), files)
+        return files
+
+    def past_style(self, course):
+        """A line asking to model the question on the course's past exams, if there are any."""
+        files = self.past_exams(course)[:2]  # every question reads these, so only a couple
+        return " " + t("buddy_past_style", files="; ".join(f'"{f}"' for f in files)) if files else ""
+
+    def ask_past_exam(self):
+        """The chat's "Past exam" button: a real problem from a past exam of the next exam's course, graded."""
+        if self.waiting or self.bridge.busy:
+            return
+        for course, days in self.course_list():
+            files = self.past_exams(course)
+            if files and days is not None:
+                break
+        else:
+            self.note(t("buddy_no_past"))
+            return
+        scope = [os.path.basename(r["path"]) for r in self.mastery.files(course, "done") if r["exam"]]
+        self.last_question = time.time()
+        self.send(t("buddy_prompt_past", course=course, files="; ".join(f'"{f}"' for f in files),
+                    scope=", ".join(scope) or "?"), "question")
 
     def show_slides(self, tags, topic_id):
         """Open the deck a question or explanation is about, at its slides, so the student can follow along.

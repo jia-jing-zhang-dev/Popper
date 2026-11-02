@@ -308,7 +308,7 @@ class ChatWindow:
         self.status = tk.Label(head, bg=BG, fg=ACCENT, font=f("Microsoft YaHei UI", 9))
         self.status.pack(side="left", padx=10)
         for key, cmd in (("buddy_folders", lambda: feature.open_folders()), ("buddy_checklist", feature.open_mastery),
-                         ("buddy_exercise", feature.ask_exercise),
+                         ("buddy_exercise", feature.ask_exercise), ("buddy_past", feature.ask_past_exam),
                          ("buddy_snooze", feature.snooze_today), ("buddy_review", feature.review_now),
                          ("buddy_new_question", feature.ask_question)):
             b = tk.Label(head, text=t(key), bg=PANEL, fg=ACCENT, padx=10, pady=2, cursor="hand2",
