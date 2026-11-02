@@ -91,6 +91,9 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
   exam's decks. Past exams (PDFs named midterm/exam/sample... in a course folder) are extracted to
   `DATA_DIR/buddy/exams/` (`mastery.past_exams`, duplicates dropped): topic questions grep up to two of them for
   style, and the chat's "Past exam" button asks real problems from them and grades them.
+- Exam notes: what an instructor announced about the next exam (format, question types) goes in
+  `DATA_DIR/buddy/exam_notes/<course code>.txt` (e.g. `CSE 307.txt`, local only); `exam_style` adds it to every
+  topic question and exercise prompt for that course.
 - The chat draws each reply as a card (`ChatWindow.buddy_card`, CustomTkinter widgets embedded in a read-only
   `tk.Text` so it scrolls like a page): verdict and slides chips on top, a line ending in "?" as the bold
   question, 4-space lines as a code block, `A) ...` lines as option rows (click or Alt+letter starts the answer;

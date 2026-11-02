@@ -276,7 +276,19 @@ class BuddyFeature(Feature):
     def past_style(self, course):
         """A line asking to model the question on the course's past exams, if there are any."""
         files = self.past_exams(course)[:2]  # every question reads these, so only a couple
-        return " " + t("buddy_past_style", files="; ".join(f'"{f}"' for f in files)) if files else ""
+        return (" " + t("buddy_past_style", files="; ".join(f'"{f}"' for f in files)) if files else "") \
+            + self.exam_style(course)
+
+    def exam_style(self, course):
+        """A line with what the instructor said about the next exam (its format and the kind of questions),
+        from DATA_DIR/buddy/exam_notes/<course>.txt, so questions practise for that exam."""
+        path = os.path.join(self.bridge.workdir, "exam_notes", course + ".txt")
+        try:
+            with open(path, encoding="utf-8") as f:
+                notes = " ".join(f.read().split())
+        except OSError:
+            return ""
+        return " " + t("buddy_exam_style", notes=notes[:1500]) if notes else ""
 
     def ask_past_exam(self):
         """The chat's "Past exam" button: a real problem from a past exam of the next exam's course, graded."""
