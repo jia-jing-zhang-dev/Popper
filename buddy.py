@@ -36,6 +36,8 @@ OPTION_RE = re.compile(r"^\s*\(?([A-Ha-h])[).:]\s+\S")
 SLIDES_RE = re.compile(r"^[（(](?:Slides|课件)[:：]\s*(.+?\.(?:pdf|pptx))[，,]\s*(?:slides|第)\s*([\d\s,–-]+)", re.I)
 NOTE_RE = re.compile(r"^[（(].*[）)]$")
 BADGE_RE = re.compile(r"^([✓~✗]) ")  # the verdict line Popper puts on top of graded feedback
+# an answer that picks an option: "B", "B, because ...", "b) ...", "B 因为 ..."
+CHOICE_RE = re.compile(r"^\s*\(?([A-Ha-h])(?:\)|[,，.:：]|\s*$|\s+(?:because|since|因为))")
 
 PERSONA = """You are Popper (泡泡), a warm, slightly fussy study buddy who lives in the corner of a university student's screen. Think of a caring friend who keeps nudging them to learn, notices what they're working on, and is genuinely curious with them. Your goal: before each exam the student truly understands everything on that course's lecture slides.
 
@@ -368,7 +370,13 @@ class ChatWindow:
                                 spacing1=int(10 * s))
         for kind, color in (("✓", GOOD), ("~", "#f0b85a"), ("✗", "#e57373")):
             self.view.tag_configure("badge" + kind, foreground=color, font=f("Microsoft YaHei UI", 10) + ("bold",))
+        # the option the student picked: highlighted when sent, then coloured by how it went
+        self.view.tag_configure("chosen", background="#3a4866", font=f("Microsoft YaHei UI", 11) + ("bold",))
+        for kind, bg, fg in (("✓", "#22452f", GOOD), ("~", "#4a4026", "#f0b85a"), ("✗", "#4d2a2e", "#ff8a8a")):
+            self.view.tag_configure("chosen" + kind, background=bg, foreground=fg)
         self.tags = 0
+        self.options = {}   # letter -> tag of each option in the latest multiple-choice question
+        self.chosen = None  # tag of the option picked in answer to it
 
         top.bind("<Escape>", lambda e: top.destroy())
         top.geometry(f"{int(700 * s)}x{int(620 * s)}")
@@ -401,6 +409,7 @@ class ChatWindow:
             self.add_buddy_text(text)
         else:
             v.insert("end", text.strip() + "\n", "me_text")
+            self.mark_choice(text)
         v.configure(state="disabled")
         if scroll:
             v.see("end")
@@ -412,9 +421,13 @@ class ChatWindow:
         lines = text.strip().splitlines()
         while lines and not lines[-1].strip():
             lines.pop()
+        options = {}
         for n, line in enumerate(lines):
             if n == 0 and BADGE_RE.match(line):
                 v.insert("end", line.strip() + "\n", "badge" + line[0])
+                if self.chosen:  # the verdict on the picked option
+                    v.tag_add("chosen" + line[0], *v.tag_ranges(self.chosen))
+                    self.chosen = None
                 continue
             m = OPTION_RE.match(line)
             slides = SLIDES_RE.match(line.strip())
@@ -423,6 +436,7 @@ class ChatWindow:
             if m:
                 v.insert("end", line.strip() + "\n", ("option", tag))
                 self.clickable(tag, lambda l=m.group(1).upper(): self.pick(l), hover=True)
+                options[m.group(1).upper()] = tag
             elif slides:
                 v.insert("end", line.strip() + "\n", ("link", tag))
                 self.clickable(tag, lambda d=slides.group(1), s=slides.group(2): self.feature.reopen_slides(d, s))
@@ -434,6 +448,19 @@ class ChatWindow:
                 v.insert("end", line.strip() + "\n", "question")
             else:
                 v.insert("end", line.rstrip() + "\n")
+
+        if options:
+            self.options, self.chosen = options, None
+
+    def mark_choice(self, text):
+        """Highlight the option an answer picks, in the latest multiple-choice question."""
+        m = CHOICE_RE.match(text)
+        tag = self.options.get(m.group(1).upper()) if m else None
+        if tag:
+            if self.chosen:
+                self.view.tag_remove("chosen", *self.view.tag_ranges(self.chosen))
+            self.view.tag_add("chosen", *self.view.tag_ranges(tag))
+            self.chosen = tag
 
     def clickable(self, tag, action, hover=False):
         v = self.view
