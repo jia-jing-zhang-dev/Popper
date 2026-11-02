@@ -139,6 +139,12 @@ def first_slide(slides):
     return max(1, int(m.group())) if m else 1
 
 
+def short_slides(slides):
+    """'12' for '12-12', which reads oddly; other ranges as they are."""
+    ends = re.findall(r"\d+", str(slides or ""))
+    return ends[0] if len(ends) == 2 and ends[0] == ends[1] else str(slides or "")
+
+
 def open_slides(path, slides):
     """Show the deck at the first of `slides`: PDFs in Edge (which can jump to a page), anything else as is."""
     if path.lower().endswith(".pdf"):
@@ -189,8 +195,11 @@ class MasteryStore:
                 path      TEXT NOT NULL UNIQUE,
                 state     TEXT NOT NULL,     -- 'new' (not sorted yet), 'skip', 'slides' (to read), 'done', 'failed'
                 ord       INTEGER DEFAULT 0, -- lecture order
-                text_file TEXT               -- extracted text, relative to the buddy's working folder
+                text_file TEXT,              -- extracted text, relative to the buddy's working folder
+                exam      INTEGER DEFAULT 1  -- 1 if the next exam covers this deck
             )""")
+        if "exam" not in [c[1] for c in self.db.execute("PRAGMA table_info(mastery_files)")]:
+            self.db.execute("ALTER TABLE mastery_files ADD COLUMN exam INTEGER DEFAULT 1")
         self.db.execute("""
             CREATE TABLE IF NOT EXISTS mastery_topics (
                 id       INTEGER PRIMARY KEY,
@@ -232,6 +241,11 @@ class MasteryStore:
                         "WHERE id=?", (state, ord, text_file, file_id))
         self.db.commit()
 
+    def set_exam(self, file_id, on):
+        """Whether the next exam covers this deck (questions and readiness stay inside the exam's decks)."""
+        self.db.execute("UPDATE mastery_files SET exam=? WHERE id=?", (1 if on else 0, file_id))
+        self.db.commit()
+
     def retry_failed(self):
         self.db.execute("UPDATE mastery_files SET state='slides' WHERE state='failed'")
         self.db.commit()
@@ -252,13 +266,13 @@ class MasteryStore:
         return [r[0] for r in self.db.execute("SELECT DISTINCT course FROM mastery_topics")]
 
     def topics(self, course):
-        """Topics in slide order, with their deck's file."""
-        return self.db.execute("SELECT t.*, f.path, f.text_file FROM mastery_topics t "
+        """Topics in slide order, with their deck's file and whether the exam covers it."""
+        return self.db.execute("SELECT t.*, f.path, f.text_file, COALESCE(f.exam, 1) AS exam FROM mastery_topics t "
                                "LEFT JOIN mastery_files f ON f.id = t.file_id WHERE t.course=? ORDER BY t.ord",
                                (course,)).fetchall()
 
     def topic(self, topic_id):
-        return self.db.execute("SELECT t.*, f.path, f.text_file FROM mastery_topics t "
+        return self.db.execute("SELECT t.*, f.path, f.text_file, COALESCE(f.exam, 1) AS exam FROM mastery_topics t "
                                "LEFT JOIN mastery_files f ON f.id = t.file_id WHERE t.id=?", (topic_id,)).fetchone()
 
     def deck(self, name):
@@ -283,12 +297,21 @@ class MasteryStore:
                 return r["id"]
         return None
 
+    def in_scope(self, rows):
+        """The rows the exam covers (all of them if no deck is marked as covered)."""
+        covered = [r for r in rows if r["exam"]]
+        return covered or rows
+
     def summary(self, course):
+        """Counts over the topics the exam covers; 'out' is how many it leaves out."""
+        rows = self.topics(course)
+        scope = self.in_scope(rows)
         counts = {"new": 0, "shaky": 0, "known": 0}
-        for r in self.topics(course):
+        for r in scope:
             counts[status(r)] += 1
         total = sum(counts.values())
         counts["total"] = total
+        counts["out"] = len(rows) - len(scope)
         counts["ready"] = round(100 * counts["known"] / total) if total else 0
         return counts
 
@@ -317,7 +340,7 @@ class MasteryStore:
         import random
         rand = rand or random.random
         now = now or time.time()
-        rows = [r for r in self.topics(course) if r["id"] != avoid]
+        rows = [r for r in self.in_scope(self.topics(course)) if r["id"] != avoid]
         if kind and any(r["kind"] == kind for r in rows):
             rows = [r for r in rows if r["kind"] == kind]
         shaky = sorted((r for r in rows if status(r) == "shaky"), key=lambda r: r["p"])
@@ -492,7 +515,7 @@ class MasteryWindow:
         self.status = tk.Label(top, bg=BG, fg=ACCENT, anchor="w", font=f("Microsoft YaHei UI", 9))
         self.status.pack(fill="x", padx=14)
         tk.Label(top, text=t("mastery_hint"), bg=BG, fg=FG_DIM, anchor="w", justify="left",
-                 font=f("Microsoft YaHei UI", 9)).pack(fill="x", padx=14, pady=(0, 6))
+                 wraplength=int(530 * s), font=f("Microsoft YaHei UI", 9)).pack(fill="x", padx=14, pady=(0, 6))
 
         body = tk.Frame(top, bg=PANEL)
         body.pack(fill="both", expand=True, padx=14, pady=(0, 12))
@@ -516,6 +539,9 @@ class MasteryWindow:
         v.tag_configure("topic_new", foreground=FG)
         v.tag_configure("topic_shaky", foreground="#f0b85a")
         v.tag_configure("topic_known", foreground=FG_DIM)
+        v.tag_configure("topic_out", foreground="#5d6578")
+        v.tag_configure("scope_on", foreground=GOOD, font=f("Microsoft YaHei UI", 9))
+        v.tag_configure("scope_off", foreground="#7d8597", font=f("Microsoft YaHei UI", 9))
         v.tag_configure("failed", foreground=LATE)
 
         top.bind("<Escape>", lambda e: top.destroy())
@@ -542,6 +568,10 @@ class MasteryWindow:
         v.configure(state="disabled")
         v.yview_moveto(top_line)
 
+    def toggle_exam(self, file_id, on):
+        self.feature.mastery.set_exam(file_id, on)
+        self.feature.mastery_changed()
+
     def add_course(self, course, days):
         v, store = self.view, self.feature.mastery
         v.insert("end", course + "   ", "course")
@@ -558,18 +588,33 @@ class MasteryWindow:
         v.insert("end", "█" * filled, "bar_on")
         v.insert("end", "█" * (20 - filled), "bar_off")
         v.insert("end", "  " + t("mastery_ready", ready=sm["ready"]) + "\n", "ready")
-        v.insert("end", t("mastery_counts", known=sm["known"], shaky=sm["shaky"], new=sm["new"]) + "\n", "dim")
+        v.insert("end", t("mastery_counts", known=sm["known"], shaky=sm["shaky"], new=sm["new"])
+                 + (t("mastery_out", n=sm["out"]) if sm["out"] else "") + "\n", "dim")
+        # the exam's decks first with every topic; decks it leaves out folded into one line each
+        rows = sorted(store.topics(course), key=lambda r: (not r["exam"], r["ord"]))
         deck = None
-        for r in store.topics(course):
+        for r in rows:
             if r["path"] != deck:
                 deck = r["path"]
-                v.insert("end", os.path.basename(deck or "") + "\n", "deck")
+                v.insert("end", os.path.basename(deck or "") + "   ", "deck" if r["exam"] else "topic_out")
+                scope = f"s{r['file_id']}"
+                v.insert("end", t("mastery_in_exam") if r["exam"] else t("mastery_not_exam"),
+                         ("scope_on" if r["exam"] else "scope_off", scope))
+                if not r["exam"]:
+                    n = sum(1 for x in rows if x["file_id"] == r["file_id"])
+                    v.insert("end", "   " + t("mastery_folded", n=n), "dim")
+                v.insert("end", "\n")
+                v.tag_bind(scope, "<Enter>", lambda e: v.configure(cursor="hand2"))
+                v.tag_bind(scope, "<Leave>", lambda e: v.configure(cursor="arrow"))
+                v.tag_bind(scope, "<Button-1>", lambda e, i=r["file_id"], on=r["exam"]: self.toggle_exam(i, not on))
+            if not r["exam"]:
+                continue
             st = status(r)
             tag = f"t{r['id']}"
             v.insert("end", f"  {self.MARK[st]} ", "mark_" + st)
             v.insert("end", r["topic"], ("topic_" + st, tag))
             if r["slides"]:
-                v.insert("end", f"   {t('mastery_slides', slides=r['slides'])}", "dim")
+                v.insert("end", f"   {t('mastery_slides', slides=short_slides(r['slides']))}", "dim")
             v.insert("end", "\n")
             v.tag_bind(tag, "<Enter>", lambda e: v.configure(cursor="hand2"))
             v.tag_bind(tag, "<Leave>", lambda e: v.configure(cursor="arrow"))

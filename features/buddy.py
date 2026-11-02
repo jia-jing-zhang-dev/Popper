@@ -3,7 +3,6 @@
 import datetime as dt
 import os
 import random
-import re
 import threading
 import time
 
@@ -260,9 +259,7 @@ class BuddyFeature(Feature):
             return ""
         same = row and row["path"] == deck
         slides = tags.get("slides") or (row["slides"] if same else "") or "1"
-        ends = re.findall(r"\d+", slides)
-        if len(ends) == 2 and ends[0] == ends[1]:  # "11-11" reads oddly
-            slides = ends[0]
+        slides = mastery.short_slides(slides)
         if self.window("chat"):
             self.open_slides(deck, slides)
         else:
