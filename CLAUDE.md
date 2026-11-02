@@ -86,6 +86,9 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 - Academic content (questions, feedback, explanations) is always English; casual chat follows `ui_lang`.
   Questions target slide topics from the mastery checklist: course on screen, else mostly the nearest exam
   (an open goal whose title contains the course code), shaky and not-yet-covered topics first.
+- Questions and explanations about slides open the deck at that slide (`mastery.open_slides`: PDFs in Edge with
+  `#page=N`), from the topic's slide range or a `[[source]]` + `[[slides: N-M]]` tag; while the chat is closed
+  this waits until it opens, and the same deck page isn't opened twice in a row.
 - Every real call spends the owner's quota and takes 7-30 s. Test scheduling and book-keeping with
   a fake `bridge.ask` that queues a canned reply, and make real calls only for a final check.
 

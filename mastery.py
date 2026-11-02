@@ -13,9 +13,12 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import tkinter as tk
+from urllib.parse import quote
 
 from i18n import t
 from library import ACCENT, BG, FG, FG_DIM, GOOD, LATE, PANEL
@@ -130,6 +133,24 @@ def extract_text(path):
     return text[:TEXT_LIMIT] if len(re.sub(r"--- slide \d+ ---|\s", "", text)) > 200 else ""
 
 
+def first_slide(slides):
+    """3 from '3-7' (or '3', 'slide 3'); 1 if there's no number."""
+    m = re.search(r"\d+", str(slides or ""))
+    return max(1, int(m.group())) if m else 1
+
+
+def open_slides(path, slides):
+    """Show the deck at the first of `slides`: PDFs in Edge (which can jump to a page), anything else as is."""
+    if path.lower().endswith(".pdf"):
+        edge = shutil.which("msedge") or os.path.join(os.environ.get("ProgramFiles(x86)", ""), "Microsoft", "Edge",
+                                                      "Application", "msedge.exe")
+        if os.path.exists(edge):
+            url = "file:///" + quote(path.replace("\\", "/"), safe="/:") + f"#page={first_slide(slides)}"
+            subprocess.Popen([edge, url], creationflags=subprocess.CREATE_NO_WINDOW)
+            return
+    os.startfile(path)
+
+
 def parse_json(text):
     """The first JSON object in a reply (Claude sometimes wraps it in a sentence or a fence)."""
     start, end = (text or "").find("{"), (text or "").rfind("}")
@@ -239,6 +260,14 @@ class MasteryStore:
     def topic(self, topic_id):
         return self.db.execute("SELECT t.*, f.path, f.text_file FROM mastery_topics t "
                                "LEFT JOIN mastery_files f ON f.id = t.file_id WHERE t.id=?", (topic_id,)).fetchone()
+
+    def deck(self, name):
+        """A read slide deck's path from its file name (a [[source]] tag), or None."""
+        name = os.path.basename((name or "").strip()).lower()
+        for (path,) in self.db.execute("SELECT path FROM mastery_files WHERE state='done'"):
+            if os.path.basename(path).lower() == name:
+                return path
+        return None
 
     def find(self, name):
         """A topic id by name (from a [[topic]] tag), exact first, then one containing the other."""

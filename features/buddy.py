@@ -7,6 +7,7 @@ import threading
 import time
 
 import exercise
+import mastery
 from buddy import BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
 from focus import day_range, idle_seconds
 from i18n import t
@@ -43,6 +44,8 @@ class BuddyFeature(Feature):
         self.last_topic = None
         self.want_exercise = False        # the student asked for a coding exercise: open it right away
         self.pending_exercise = None      # (folder, file) saved while the chat was closed; opens with the chat
+        self.pending_slides = None        # (deck, slides) to show when the chat opens
+        self.shown_slides = None          # the last (deck, first slide) shown, so it isn't opened twice
         self.tools = {}
 
         def detect():
@@ -77,6 +80,8 @@ class BuddyFeature(Feature):
     def open_chat(self):
         self.app.clear_notice()
         self.show("chat", lambda: ChatWindow(self.app, self))
+        if self.pending_slides:
+            self.open_slides(*self.pending_slides)
         if self.pending_exercise:
             exercise.open_in_vscode(*self.pending_exercise)
             self.pending_exercise = None
@@ -172,9 +177,15 @@ class BuddyFeature(Feature):
         raw, code = exercise.take_code(result["text"])
         text, tags = split_tags(raw)
         topic_id = self.pending_topic
+        if "verdict" in tags:  # an explanation of an answer: about the question's topic (read before grading)
+            question = self.store.open_question()
+            topic_id = question["topic_id"] if question else None
         self.on_tags(text, tags, kind)
         if code:
             text += "\n" + self.save_exercise(tags, code, text, topic_id)
+        slides_note = self.show_slides(tags, topic_id)
+        if slides_note:
+            text += "\n" + slides_note
         if kind == "question":
             self.pending_topic = None
             self.want_exercise = False
@@ -238,6 +249,28 @@ class BuddyFeature(Feature):
         else:
             prompt = t("buddy_prompt_exercise_any")
         self.send(prompt, "question")
+
+    def show_slides(self, tags, topic_id):
+        """Open the deck a question or explanation is about, at its slides, so the student can follow along.
+        Returns the line added to the chat (or '')."""
+        row = self.mastery.topic(topic_id) if topic_id else None
+        deck = self.mastery.deck(tags.get("source")) or (row["path"] if row else None)
+        if not deck or not os.path.exists(deck):
+            return ""
+        same = row and row["path"] == deck
+        slides = tags.get("slides") or (row["slides"] if same else "") or "1"
+        if self.window("chat"):
+            self.open_slides(deck, slides)
+        else:
+            self.pending_slides = (deck, slides)
+        return t("slides_note", deck=os.path.basename(deck), slides=slides)
+
+    def open_slides(self, deck, slides):
+        self.pending_slides = None
+        key = (deck, mastery.first_slide(slides))
+        if key != self.shown_slides:
+            self.shown_slides = key
+            mastery.open_slides(deck, slides)
 
     def save_exercise(self, tags, code, text, topic_id):
         """Write the starter code as a runnable folder; open VS Code now if the student is here for it.

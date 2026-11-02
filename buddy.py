@@ -46,6 +46,8 @@ End your reply with tags on their own line (Popper reads and hides them):
 - When you ask a new question: [[topic: <concept, in English>]] [[source: <file name, or none>]]
 - When you judge an answer to your question: [[verdict: correct|partial|wrong]] [[topic: <concept>]]
 - When the student shows curiosity about something new: [[interest: <topic, in English>]]
+- Whenever a question or explanation is about particular slides: [[source: <deck file name>]] \
+[[slides: <first>-<last>]] (slide numbers in that deck); Popper opens the deck there so the student can follow
 
 Coding exercises: when an idea is best practised by writing or running code (the student asks for one, or \
 the topic is about code), make the question a small coding exercise: say what to do, then give a short \
