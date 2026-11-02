@@ -148,6 +148,9 @@ class BuddyFeature(Feature):
         session_id = self.store.session(day)
         if not session_id:
             prompt = self.context() + "\n\n" + prompt
+        if kind == "question":
+            # later in a long day's session Claude copies its own earlier replies more than the persona
+            prompt += "\n\n" + t("buddy_format")
         self.waiting = True
         self._busy(True)
         self.bridge.ask(prompt, self.folders(), session_id,

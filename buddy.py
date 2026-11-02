@@ -12,6 +12,7 @@ Replies end with machine-readable tags that Popper strips before showing them:
   [[interest: ...]]                when the student shows curiosity about something
 """
 
+import ctypes
 import datetime as dt
 import json
 import os
@@ -24,6 +25,8 @@ import time
 import tkinter as tk
 from tkinter import filedialog
 
+import customtkinter as ctk  # rounded cards and buttons in the chat (TomSchimansky/CustomTkinter, MIT)
+
 from i18n import t
 from library import ACCENT, BG, FG, FG_DIM, GOOD, PANEL
 
@@ -33,6 +36,7 @@ TAG_RE = re.compile(r"\[\[\s*(\w+)\s*:\s*(.*?)\s*\]\]")
 CLEAN_RE = re.compile("\\*\\*|__|`|[\U0001F000-\U0001FAFF☀-➿️]")
 # how the chat lays out a reply: answer options, code, the "(Slides: deck, slides N)" line, other notes
 OPTION_RE = re.compile(r"^\s*\(?([A-Ha-h])[).:]\s+\S")
+OPTION_PREFIX_RE = re.compile(r"^\s*\(?[A-Ha-h][).:]\s+")
 SLIDES_RE = re.compile(r"^[（(](?:Slides|课件)[:：]\s*(.+?\.(?:pdf|pptx))[，,]\s*(?:slides|第)\s*([\d\s,–-]+)", re.I)
 NOTE_RE = re.compile(r"^[（(].*[）)]$")
 BADGE_RE = re.compile(r"^([✓~✗]) ")  # the verdict line Popper puts on top of graded feedback
@@ -65,6 +69,30 @@ starter file in one fenced code block (the only Markdown allowed) that compiles 
 and a main or tests that print what to check. Use the language the course's slides use and one that this PC \
 has (see the context). Add [[exercise: c|python|ocaml]] to the tags. Popper saves the file and opens it in \
 VS Code, so don't explain how to set anything up."""
+
+
+# chat card colours, on the dark palette of library.py
+CARD = "#2b3242"
+ME_BUBBLE = "#2d4a70"
+CODE_BG = "#1b2029"
+CHIP = "#24304a"
+OPTION_BG = "#323a4d"
+OPTION_HOVER = "#3b4560"
+OPTION_BORDER = "#3f4860"
+BADGE_BG = "#454f68"
+PICKED_BG = "#2e4466"
+VERDICT = {"✓": ("#1f4a33", GOOD), "~": ("#4d4224", "#f0b85a"), "✗": ("#52282d", "#ff8a8a")}
+
+
+def dark_title_bar(top):
+    """Windows 10/11: a dark title bar to match the dark window (as py-window-styles does, CC0)."""
+    try:
+        top.update_idletasks()
+        hwnd = ctypes.windll.user32.GetParent(top.winfo_id())
+        value = ctypes.c_int(1)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
+    except (AttributeError, OSError):
+        pass
 
 
 def find_claude():
@@ -295,7 +323,9 @@ class FolderDialog:
 
 
 class ChatWindow:
-    """A small chat with the buddy. The input sits below the transcript and never moves."""
+    """A chat with the buddy, drawn as cards: Popper's replies in rounded cards (the question in bold, code in
+    an inset block, answer options as big rounded buttons, the slides as a chip on top), the student's messages
+    as bubbles on the right. The input sits below the transcript and never moves."""
 
     def __init__(self, app, feature):
         self.app, self.feature = app, feature
@@ -303,6 +333,7 @@ class ChatWindow:
         top.title(t("buddy_title"))
         top.configure(bg=BG)
         top.attributes("-topmost", True)
+        dark_title_bar(top)
         s, f = app.scale, app.font
 
         head = tk.Frame(top, bg=BG)
@@ -345,42 +376,30 @@ class ChatWindow:
         send.pack(side="left", fill="y", padx=(8, 0))
         send.bind("<Button-1>", self.send)
 
-        body = tk.Frame(top, bg=PANEL)
+        body = tk.Frame(top, bg=BG)
         body.pack(fill="both", expand=True, padx=14)
-        self.view = tk.Text(body, bg=PANEL, fg=FG, relief="flat", wrap="word", cursor="arrow", width=1, height=1,
-                            padx=int(12 * s), pady=int(10 * s), spacing1=int(2 * s), spacing3=int(4 * s),
-                            font=f("Microsoft YaHei UI", 11), highlightthickness=0)
-        scroll = tk.Scrollbar(body, command=self.view.yview)
+        # the transcript is a read-only Text holding the cards as embedded windows, so it scrolls like a page
+        self.view = tk.Text(body, bg=BG, relief="flat", wrap="word", cursor="arrow", width=1, height=1,
+                            padx=int(4 * s), pady=int(6 * s), highlightthickness=0, state="disabled")
+        scroll = ctk.CTkScrollbar(body, command=self.view.yview, fg_color=BG, button_color="#3a4358",
+                                  button_hover_color="#4a5570")
         self.view.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         self.view.pack(side="left", fill="both", expand=True)
-        self.view.tag_configure("buddy_name", foreground=GOOD, font=f("Microsoft YaHei UI Semibold", 10),
-                                spacing1=int(10 * s))
-        self.view.tag_configure("me_name", foreground=ACCENT, font=f("Microsoft YaHei UI Semibold", 10),
-                                spacing1=int(10 * s))
-        self.view.tag_configure("note", foreground=FG_DIM, font=f("Microsoft YaHei UI", 9))
-        self.view.tag_configure("question", font=f("Microsoft YaHei UI", 11) + ("bold",), spacing1=int(6 * s))
-        self.view.tag_configure("option", lmargin1=int(14 * s), lmargin2=int(34 * s), spacing1=int(3 * s))
-        self.view.tag_configure("option_hover", background="#36405a")
-        self.view.tag_configure("code", font=f("Consolas", 10), background="#20252f", lmargin1=int(10 * s),
-                                lmargin2=int(10 * s))
-        self.view.tag_configure("link", foreground=ACCENT, underline=True, font=f("Microsoft YaHei UI", 9))
-        self.view.tag_configure("me_text", foreground="#d6e9ff", lmargin1=int(24 * s), lmargin2=int(24 * s))
-        self.view.tag_configure("thinking", foreground=FG_DIM, font=f("Microsoft YaHei UI", 10) + ("italic",),
-                                spacing1=int(10 * s))
-        for kind, color in (("✓", GOOD), ("~", "#f0b85a"), ("✗", "#e57373")):
-            self.view.tag_configure("badge" + kind, foreground=color, font=f("Microsoft YaHei UI", 10) + ("bold",))
-        # the option the student picked: highlighted when sent, then coloured by how it went
-        self.view.tag_configure("chosen", background="#3a4866", font=f("Microsoft YaHei UI", 11) + ("bold",))
-        for kind, bg, fg in (("✓", "#22452f", GOOD), ("~", "#4a4026", "#f0b85a"), ("✗", "#4d2a2e", "#ff8a8a")):
-            self.view.tag_configure("chosen" + kind, background=bg, foreground=fg)
-        self.tags = 0
-        self.options = {}   # letter -> tag of each option in the latest multiple-choice question
-        self.chosen = None  # tag of the option picked in answer to it
+        self.view.tag_configure("right", justify="right")
+        self.view.tag_configure("gap", font=f("Microsoft YaHei UI", 4))
+        self.cards = []         # every card widget, so they can be resized and destroyed
+        self.wraps = []         # (label, share of the card width) to re-wrap on resize
+        self.options = {}       # letter -> option row of the latest multiple-choice question
+        self.chosen = None      # the option row picked in answer to it
+        self.thinking = None
+        self.width_job = None
+        self.view.bind("<Configure>", self.on_resize)
 
         top.bind("<Escape>", lambda e: top.destroy())
         self.bind_keys(top)
-        top.geometry(f"{int(700 * s)}x{int(620 * s)}")
+        top.geometry(f"{int(720 * s)}x{int(680 * s)}")
+        top.update_idletasks()
         self.reload()
         self.set_busy(feature.bridge.busy or feature.waiting)
         self.set_context(feature.current_context())
@@ -388,70 +407,197 @@ class ChatWindow:
         top.focus_force()
         self.input.focus_set()
 
-    def reload(self):
-        v = self.view
-        v.configure(state="normal")
-        v.delete("1.0", "end")
-        rows = self.feature.store.messages(dt.date.today())
-        if not rows:
-            v.insert("end", t("buddy_empty") + "\n", "note")
-        for r in rows:
-            self.add_line(r["role"], r["text"], scroll=False)
-        v.configure(state="disabled")
-        v.see("end")
+    # ---------- layout helpers
 
-    def add_line(self, role, text, scroll=True):
+    def cfont(self, size, weight="normal", family="Microsoft YaHei UI"):
+        """A CustomTkinter font matching app.font(family, size): CTk sizes are pixels at 96 dpi, Tk's are points."""
+        return ctk.CTkFont(family=family, size=round(self.app.font(family, size)[1] * 4 / 3), weight=weight)
+
+    def card_width(self):
+        """Usable width for a card, in CustomTkinter's unscaled pixels."""
+        scaling = ctk.ScalingTracker.get_window_dpi_scaling(self.top) or 1
+        return max(300, int((self.view.winfo_width() - 40 * self.app.scale) / scaling))
+
+    def label(self, parent, text, size=11, weight="normal", color=FG, share=1.0, family="Microsoft YaHei UI",
+              **pack):
+        w = ctk.CTkLabel(parent, text=text, font=self.cfont(size, weight, family), text_color=color,
+                         justify="left", anchor="w", wraplength=int(self.card_width() * share) - 40)
+        w.pack(fill="x", **pack)
+        self.wraps.append((w, share))
+        return w
+
+    def wheel(self, widget):
+        """Let the mouse wheel scroll the chat while the pointer is over a card."""
+        widget.bind("<MouseWheel>", lambda e: self.view.yview_scroll(-1 if e.delta > 0 else 1, "units") or "break",
+                    add="+")
+        for child in widget.winfo_children():
+            self.wheel(child)
+
+    def place(self, widget, right=False):
         v = self.view
         v.configure(state="normal")
         start = v.index("end-1c")
-        name = t("buddy_name") if role == "buddy" else t("buddy_me")
-        v.insert("end", f"{name}\n", "buddy_name" if role == "buddy" else "me_name")
-        if role == "buddy":
-            self.add_buddy_text(text)
-        else:
-            v.insert("end", text.strip() + "\n", "me_text")
-            self.mark_choice(text)
+        v.window_create("end", window=widget, padx=int(4 * self.app.scale), pady=int(5 * self.app.scale))
+        v.insert("end", "\n")
+        if right:  # justify is a line property: tag the whole line, the embedded card included
+            v.tag_add("right", start, "end-1c")
         v.configure(state="disabled")
-        if scroll:
-            v.see("end")
-            v.see(start)  # a long reply is read from its start, not its end
+        self.cards.append(widget)
+        self.wheel(widget)
 
-    def add_buddy_text(self, text):
-        """Lay out a reply: the question in bold, clickable answer options, code blocks, a link to the slides."""
+    def on_resize(self, _=None):
+        if self.width_job:
+            self.top.after_cancel(self.width_job)
+        self.width_job = self.top.after(120, self.rewrap)
+
+    def rewrap(self):
+        self.width_job = None
+        width = self.card_width()
+        for w, share in self.wraps:
+            if w.winfo_exists():
+                w.configure(wraplength=int(width * share) - 40)
+        for card in self.cards:
+            if card.winfo_exists() and getattr(card, "full", False):
+                card.configure(width=width)
+
+    # ---------- messages
+
+    def reload(self):
+        for card in self.cards:
+            card.destroy()
+        self.cards, self.wraps, self.options, self.chosen, self.thinking = [], [], {}, None, None
         v = self.view
-        lines = text.strip().splitlines()
-        while lines and not lines[-1].strip():
-            lines.pop()
-        options = {}
-        for n, line in enumerate(lines):
-            if n == 0 and BADGE_RE.match(line):
-                v.insert("end", line.strip() + "\n", "badge" + line[0])
-                if self.chosen:  # the verdict on the picked option
-                    v.tag_add("chosen" + line[0], *v.tag_ranges(self.chosen))
-                    self.chosen = None
+        v.configure(state="normal")
+        v.delete("1.0", "end")
+        v.configure(state="disabled")
+        rows = self.feature.store.messages(dt.date.today())
+        if not rows:
+            note = ctk.CTkFrame(self.view, fg_color="transparent")
+            self.label(note, t("buddy_empty"), size=10, color=FG_DIM)
+            self.place(note)
+        for r in rows:
+            self.add_line(r["role"], r["text"], scroll=False)
+        self.view.see("end")
+        self.view.xview_moveto(0)
+
+    def add_line(self, role, text, scroll=True):
+        if role == "buddy":
+            card = self.buddy_card(text)
+        else:
+            card = self.my_bubble(text)
+        if scroll:
+            self.view.update_idletasks()
+            self.view.see("end")
+            self.view.see(self.view.index(card))  # a long reply is read from its start, not its end
+            self.view.xview_moveto(0)  # see() may scroll sideways to a wide card; the chat never does
+
+    def my_bubble(self, text):
+        bubble = ctk.CTkFrame(self.view, fg_color=ME_BUBBLE, corner_radius=14)
+        inner = ctk.CTkFrame(bubble, fg_color="transparent")
+        inner.pack(padx=14, pady=8)
+        self.label(inner, text.strip(), color="#e8f2ff", share=0.7)
+        self.place(bubble, right=True)
+        self.mark_choice(text)
+        return bubble
+
+    def buddy_card(self, text):
+        """Lay out a reply as a card: chips (verdict, slides) on top, then text, code, the question, options."""
+        lines = [line for line in text.strip().splitlines()]
+        card = ctk.CTkFrame(self.view, fg_color=CARD, corner_radius=16, width=self.card_width())
+        card.full = True
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=18, pady=14)
+
+        chips = ctk.CTkFrame(inner, fg_color="transparent")
+        badge = lines[0] if lines and BADGE_RE.match(lines[0]) else None
+        if badge:
+            lines = lines[1:]
+            mark = badge[0]
+            verdict, _, move = badge.partition("·")
+            bg, fg = VERDICT[mark]
+            ctk.CTkLabel(chips, text="  " + verdict.strip() + "  ", fg_color=bg, text_color=fg, corner_radius=10,
+                         font=self.cfont(10, "bold")).pack(side="left", padx=(0, 8))
+            if self.chosen is not None:  # the verdict on the picked option
+                self.paint_option(self.chosen, *VERDICT[mark])
+                self.chosen = None
+        for line in lines:
+            m = SLIDES_RE.match(line.strip())
+            if m:
+                deck, slides = m.group(1), m.group(2).strip()
+                chip = ctk.CTkLabel(chips, text=f"  {t('chat_slides_chip', deck=os.path.splitext(deck)[0], slides=slides)}  ",
+                                    fg_color=CHIP, text_color=ACCENT, corner_radius=10, cursor="hand2",
+                                    font=self.cfont(9))
+                chip.pack(side="right")
+                chip.bind("<Button-1>", lambda e, d=deck, s=slides: self.feature.reopen_slides(d, s))
+        lines = [line for line in lines if not SLIDES_RE.match(line.strip())]
+        if chips.winfo_children():
+            chips.pack(fill="x", pady=(0, 8))
+        if badge and move.strip():  # how the topic moved on the checklist, under the chips
+            self.label(inner, move.strip(), size=9, color=FG_DIM, pady=(0, 6))
+
+        options, code = {}, []
+
+        def flush_code():
+            if code:
+                block = ctk.CTkFrame(inner, fg_color=CODE_BG, corner_radius=10)
+                block.pack(fill="x", pady=6)
+                lab = ctk.CTkLabel(block, text="\n".join(code), font=self.cfont(10, family="Consolas"),
+                                   text_color="#d8dee9", justify="left", anchor="w",
+                                   wraplength=int(self.card_width() * 0.95) - 80)
+                lab.pack(fill="x", padx=14, pady=10)
+                self.wraps.append((lab, 0.95))
+                code.clear()
+
+        for line in lines:
+            if line.startswith(("    ", "\t")):
+                code.append(line[4:] if line.startswith("    ") else line.lstrip("\t"))
+                continue
+            flush_code()
+            stripped = line.strip()
+            if not stripped:
                 continue
             m = OPTION_RE.match(line)
-            slides = SLIDES_RE.match(line.strip())
-            self.tags += 1
-            tag = f"x{self.tags}"
             if m:
-                v.insert("end", line.strip() + "\n", ("option", tag))
-                self.clickable(tag, lambda l=m.group(1).upper(): self.pick(l), hover=True)
-                options[m.group(1).upper()] = tag
-            elif slides:
-                v.insert("end", line.strip() + "\n", ("link", tag))
-                self.clickable(tag, lambda d=slides.group(1), s=slides.group(2): self.feature.reopen_slides(d, s))
-            elif line.startswith(("    ", "\t")):
-                v.insert("end", (line[4:] if line.startswith("    ") else line.lstrip("\t")).rstrip() + "\n", "code")
-            elif NOTE_RE.match(line.strip()):
-                v.insert("end", line.strip() + "\n", "note")
-            elif line.rstrip().endswith(("?", "？")):
-                v.insert("end", line.strip() + "\n", "question")
+                letter = m.group(1).upper()
+                options[letter] = self.option_row(inner, letter, OPTION_PREFIX_RE.sub("", stripped))
+            elif NOTE_RE.match(stripped):
+                self.label(inner, stripped, size=9, color=FG_DIM, pady=(4, 0))
+            elif stripped.endswith(("?", "？")):
+                self.label(inner, stripped, size=12, weight="bold", pady=(6, 6))
             else:
-                v.insert("end", line.rstrip() + "\n")
-
+                self.label(inner, stripped, size=11, color="#dfe5ef", pady=(2, 2))
+        flush_code()
         if options:
             self.options, self.chosen = options, None
+        self.place(card)
+        return card
+
+    def option_row(self, parent, letter, text):
+        """One answer option: a full-width rounded row with a letter badge; click (or Alt+letter) to answer."""
+        row = ctk.CTkFrame(parent, fg_color=OPTION_BG, corner_radius=12, border_width=1, border_color=OPTION_BORDER,
+                           cursor="hand2")
+        row.pack(fill="x", pady=4)
+        badge = ctk.CTkLabel(row, text=letter, width=30, height=30, corner_radius=15, fg_color=BADGE_BG,
+                             text_color=FG, font=self.cfont(10, "bold"))
+        badge.pack(side="left", padx=(10, 10), pady=8)
+        label = ctk.CTkLabel(row, text=text, font=self.cfont(11), text_color=FG, justify="left", anchor="w",
+                             wraplength=int(self.card_width() * 0.92) - 110)
+        label.pack(side="left", fill="x", expand=True, pady=8, padx=(0, 12))
+        self.wraps.append((label, 0.92))
+        row.badge, row.text, row.state = badge, label, None
+        for w in (row, badge, label):
+            w.bind("<Button-1>", lambda e, l=letter: self.pick(l))
+            w.bind("<Enter>", lambda e, r=row: r.state is None and r.configure(fg_color=OPTION_HOVER))
+            w.bind("<Leave>", lambda e, r=row: r.state is None and r.configure(fg_color=OPTION_BG))
+        return row
+
+    def paint_option(self, row, bg, fg):
+        row.state = "done"
+        row.configure(fg_color=bg, border_color=fg)
+        row.badge.configure(fg_color=fg, text_color=BG)
+        row.text.configure(text_color=fg)
+
+    # ---------- answering
 
     def bind_keys(self, top):
         """Alt+A..H picks an option; Ctrl+H hint, Ctrl+E explain, Ctrl+N next question, Ctrl+O the slides.
@@ -471,19 +617,16 @@ class ChatWindow:
     def mark_choice(self, text):
         """Highlight the option an answer picks, in the latest multiple-choice question."""
         m = CHOICE_RE.match(text)
-        tag = self.options.get(m.group(1).upper()) if m else None
-        if tag:
-            if self.chosen:
-                self.view.tag_remove("chosen", *self.view.tag_ranges(self.chosen))
-            self.view.tag_add("chosen", *self.view.tag_ranges(tag))
-            self.chosen = tag
-
-    def clickable(self, tag, action, hover=False):
-        v = self.view
-        v.tag_bind(tag, "<Enter>", lambda e: (v.configure(cursor="hand2"),
-                                              hover and v.tag_add("option_hover", *v.tag_ranges(tag))))
-        v.tag_bind(tag, "<Leave>", lambda e: (v.configure(cursor="arrow"), v.tag_remove("option_hover", "1.0", "end")))
-        v.tag_bind(tag, "<Button-1>", lambda e: action())
+        row = self.options.get(m.group(1).upper()) if m else None
+        if row is not None and row.winfo_exists():
+            if self.chosen is not None and self.chosen.winfo_exists() and self.chosen.state == "picked":
+                self.chosen.state = None
+                self.chosen.configure(fg_color=OPTION_BG, border_color=OPTION_BORDER)
+                self.chosen.badge.configure(fg_color=BADGE_BG, text_color=FG)
+            row.state = "picked"
+            row.configure(fg_color=PICKED_BG, border_color=ACCENT)
+            row.badge.configure(fg_color=ACCENT, text_color=BG)
+            self.chosen = row
 
     def pick(self, letter):
         """Clicking an option starts the answer with it; the student adds why (self-explanation) and sends."""
@@ -493,19 +636,40 @@ class ChatWindow:
         self.input.mark_set("insert", "end-1c")
 
     def set_busy(self, busy):
-        """While Claude works: a "thinking" line at the end of the chat, and the quick replies greyed out."""
+        """While Claude works: a "thinking" card at the end of the chat, and the quick replies greyed out."""
         if not self.top.winfo_exists():
             return
         self.status.configure(text=t("buddy_thinking") if busy else "")
         for b in self.quick_buttons:
             b.configure(fg=FG_DIM if busy else ACCENT, cursor="arrow" if busy else "hand2")
-        v = self.view
-        v.configure(state="normal")
-        v.delete(*v.tag_ranges("thinking")[:2]) if v.tag_ranges("thinking") else None
+        if self.thinking is not None:
+            v = self.view
+            v.configure(state="normal")
+            try:
+                v.delete(self.thinking, f"{self.thinking}+2c")
+            except tk.TclError:
+                pass
+            v.configure(state="disabled")
+            self.thinking_card.destroy()
+            self.thinking = None
         if busy:
-            v.insert("end", t("buddy_thinking_line") + "\n", "thinking")
-            v.see("end")
-        v.configure(state="disabled")
+            card = self.thinking_card = ctk.CTkFrame(self.view, fg_color=CARD, corner_radius=16)
+            label = ctk.CTkLabel(card, text=t("buddy_thinking_line"), font=self.cfont(10, "normal"),
+                                 text_color=FG_DIM)
+            label.pack(padx=18, pady=10)
+            self.place(card)
+            self.cards.remove(card)
+            self.thinking = self.view.index(card)
+            self.view.see("end")
+            self.view.xview_moveto(0)
+            self.animate(label, 0)
+
+    def animate(self, label, n):
+        """Three dots that come and go while Popper thinks."""
+        if self.thinking is None or not label.winfo_exists():
+            return
+        label.configure(text=t("buddy_thinking_line").rstrip("….") + "." * (n % 3 + 1))
+        self.top.after(450, lambda: self.animate(label, n + 1))
 
     def set_context(self, text):
         if self.top.winfo_exists():

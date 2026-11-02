@@ -90,10 +90,12 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
   exam's decks. Past exams (PDFs named midterm/exam/sample... in a course folder) are extracted to
   `DATA_DIR/buddy/exams/` (`mastery.past_exams`, duplicates dropped): topic questions grep up to two of them for
   style, and the chat's "Past exam" button asks real problems from them and grades them.
-- The chat lays replies out from plain text (`ChatWindow.add_buddy_text`): a line ending in "?" is bold,
-  `A) ...` lines are clickable options (they start the answer, the student adds why), 4-space lines are code,
-  the `(Slides: deck, slides N)` line reopens the slides. The persona asks Claude for that layout. Below the
-  transcript sit fixed one-click replies (hint, explain, skip).
+- The chat draws each reply as a card (`ChatWindow.buddy_card`, CustomTkinter widgets embedded in a read-only
+  `tk.Text` so it scrolls like a page): verdict and slides chips on top, a line ending in "?" as the bold
+  question, 4-space lines as a code block, `A) ...` lines as option rows (click or Alt+letter starts the answer;
+  picked/graded colours), the student's messages as right-aligned bubbles. Persona and a per-question
+  `buddy_format` reminder ask Claude for that layout. CTk font sizes are pixels at 96 dpi: use `cfont`.
+  Below the transcript sit one-click replies (hint, explain, skip) and Ctrl+H/E/N/O shortcuts.
 - Questions and explanations about slides open the deck at that slide (`mastery.open_slides`: PDFs in Edge with
   `#page=N`), from the topic's slide range or a `[[source]]` + `[[slides: N-M]]` tag; while the chat is closed
   this waits until it opens, and the same deck page isn't opened twice in a row.

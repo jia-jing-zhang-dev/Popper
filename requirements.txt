@@ -3,3 +3,4 @@ edge-tts>=7.0
 winocr>=0.0.15
 pypdf>=4.0
 python-pptx>=1.0
+customtkinter>=5.2

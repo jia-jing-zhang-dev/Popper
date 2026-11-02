@@ -21,6 +21,7 @@ import tkinter as tk
 from urllib.parse import quote
 
 from i18n import t
+from buddy import dark_title_bar
 from library import ACCENT, BG, FG, FG_DIM, GOOD, LATE, PANEL
 
 # Bayesian Knowledge Tracing: chance the topic is known before any answer, of answering right without
@@ -530,6 +531,7 @@ class MasteryWindow:
         top = self.top = tk.Toplevel(app.root)
         top.title(t("mastery_title"))
         top.configure(bg=BG)
+        dark_title_bar(top)
         top.attributes("-topmost", True)
         s, f = app.scale, app.font
 
