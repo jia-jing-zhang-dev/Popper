@@ -363,6 +363,14 @@ class BuddyFeature(Feature):
             win.add_line("me", label)
         self.send(t("buddy_say_" + action), "chat")
 
+    def reopen_current_slides(self):
+        """Ctrl+O in the chat: show the open question's slides again."""
+        q = self.store.open_question()
+        row = self.mastery.topic(q["topic_id"]) if q and q["topic_id"] else None
+        if row and row["path"]:
+            self.shown_slides = None
+            self.open_slides(row["path"], row["slides"] or "1")
+
     def reopen_slides(self, name, slides):
         """A click on the slides line in the chat."""
         path = self.mastery.deck(name)

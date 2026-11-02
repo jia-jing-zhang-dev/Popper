@@ -379,6 +379,7 @@ class ChatWindow:
         self.chosen = None  # tag of the option picked in answer to it
 
         top.bind("<Escape>", lambda e: top.destroy())
+        self.bind_keys(top)
         top.geometry(f"{int(700 * s)}x{int(620 * s)}")
         self.reload()
         self.set_busy(feature.bridge.busy or feature.waiting)
@@ -451,6 +452,21 @@ class ChatWindow:
 
         if options:
             self.options, self.chosen = options, None
+
+    def bind_keys(self, top):
+        """Alt+A..H picks an option; Ctrl+H hint, Ctrl+E explain, Ctrl+N next question, Ctrl+O the slides.
+        Bound on the input too, so Text's own Ctrl+H (backspace) and Ctrl+O (new line) don't run."""
+        f = self.feature
+        keys = {"h": lambda: f.quick("hint"), "e": lambda: f.quick("explain"), "n": lambda: f.quick("skip"),
+                "o": f.reopen_current_slides}
+        for widget in (top, self.input, self.view):
+            for key, action in keys.items():
+                for k in (key, key.upper()):
+                    widget.bind(f"<Control-{k}>", lambda e, a=action: (a(), "break")[1])
+            for letter in "abcdefgh":
+                for k in (letter, letter.upper()):
+                    widget.bind(f"<Alt-{k}>", lambda e, l=letter.upper(): (self.pick(l) if l in self.options
+                                                                            else None, "break")[1])
 
     def mark_choice(self, text):
         """Highlight the option an answer picks, in the latest multiple-choice question."""
