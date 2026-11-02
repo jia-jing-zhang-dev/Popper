@@ -282,12 +282,15 @@ class MasteryStore:
                         "WHERE id=?", (p, verdict == "correct", now, step, due, topic_id))
         self.db.commit()
 
-    def pick(self, course, avoid=None, rand=None, now=None):
-        """The next topic to ask about: gaps first, alternating shaky ones and new ones (interleaving)."""
+    def pick(self, course, avoid=None, rand=None, now=None, kind=None):
+        """The next topic to ask about: gaps first, alternating shaky ones and new ones (interleaving).
+        `kind` ('code') narrows it to topics of that kind when the course has any."""
         import random
         rand = rand or random.random
         now = now or time.time()
         rows = [r for r in self.topics(course) if r["id"] != avoid]
+        if kind and any(r["kind"] == kind for r in rows):
+            rows = [r for r in rows if r["kind"] == kind]
         shaky = sorted((r for r in rows if status(r) == "shaky"), key=lambda r: r["p"])
         new = [r for r in rows if status(r) == "new"]
         due = sorted((r for r in rows if status(r) == "known" and (r["due"] or 0) <= now), key=lambda r: r["due"] or 0)

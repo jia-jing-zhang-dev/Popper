@@ -3,8 +3,10 @@
 import datetime as dt
 import os
 import random
+import threading
 import time
 
+import exercise
 from buddy import BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
 from focus import day_range, idle_seconds
 from i18n import t
@@ -39,6 +41,14 @@ class BuddyFeature(Feature):
         self.builder = SlideBuilder(self, ClaudeBridge(self.app, workdir), self.mastery)
         self.pending_topic = None         # the slide topic the question being asked is about
         self.last_topic = None
+        self.want_exercise = False        # the student asked for a coding exercise: open it right away
+        self.pending_exercise = None      # (folder, file) saved while the chat was closed; opens with the chat
+        self.tools = {}
+
+        def detect():
+            tools = exercise.detect_tools()
+            self.app.ui_q.put(("call", lambda: setattr(self, "tools", tools)))
+        threading.Thread(target=detect, daemon=True).start()
         self.waiting = False
         self.retried = False
         self.last_question = time.time()  # studying since Popper started counts toward the first question
@@ -67,6 +77,9 @@ class BuddyFeature(Feature):
     def open_chat(self):
         self.app.clear_notice()
         self.show("chat", lambda: ChatWindow(self.app, self))
+        if self.pending_exercise:
+            exercise.open_in_vscode(*self.pending_exercise)
+            self.pending_exercise = None
 
     def open_mastery(self):
         self.show("mastery", lambda: MasteryWindow(self.app, self))
@@ -114,6 +127,8 @@ class BuddyFeature(Feature):
                 days = (dt.date.fromisoformat(g["deadline"]) - today).days
                 if days >= 0:
                     lines.append(t("buddy_ctx_goal", title=g["title"], days=days, date=g["deadline"]))
+        if self.tools:
+            lines.append(t("buddy_ctx_tools", tools=exercise.describe(self.tools)))
         for course, _ in self.course_list():
             sm = self.mastery.summary(course)
             if sm["total"]:
@@ -154,10 +169,15 @@ class BuddyFeature(Feature):
         self.retried = False
         if result.get("session_id"):
             self.store.set_session(day, result["session_id"])
-        text, tags = split_tags(result["text"])
+        raw, code = exercise.take_code(result["text"])
+        text, tags = split_tags(raw)
+        topic_id = self.pending_topic
         self.on_tags(text, tags, kind)
+        if code:
+            text += "\n" + self.save_exercise(tags, code, text, topic_id)
         if kind == "question":
             self.pending_topic = None
+            self.want_exercise = False
         self.store.say("buddy", text, kind)
         win = self.window("chat")
         if win:
@@ -203,13 +223,47 @@ class BuddyFeature(Feature):
                 prompt = t("buddy_ctx_now", titles="; ".join(titles)) + "\n" + prompt
         self.send(prompt, "question")
 
+    def ask_exercise(self):
+        """The chat's "Code it" button: a coding exercise on a slide topic about code, opened in VS Code."""
+        if self.waiting or self.bridge.busy:
+            return
+        row = self.choose_topic(kind="code")
+        self.want_exercise = True
+        self.last_question = time.time()
+        if row:
+            self.pending_topic = row["id"]
+            prompt = t("buddy_prompt_exercise", topic=row["topic"], course=row["course"],
+                       deck=os.path.basename(row["path"] or ""), file=row["text_file"] or row["path"] or "?",
+                       slides=row["slides"] or "?")
+        else:
+            prompt = t("buddy_prompt_exercise_any")
+        self.send(prompt, "question")
+
+    def save_exercise(self, tags, code, text, topic_id):
+        """Write the starter code as a runnable folder; open VS Code now if the student is here for it.
+        Returns the line added to the chat."""
+        lang = exercise.lang_of(tags.get("exercise"), code[0])
+        if not lang:
+            return t("exercise_unknown", lang=tags.get("exercise") or code[0] or "?")
+        row = self.mastery.topic(topic_id) if topic_id else None
+        course = row["course"] if row else (tags.get("source") or "practice")
+        topic = row["topic"] if row else (tags.get("topic") or "exercise")
+        folder, main = exercise.make(os.path.join(self.app.data_dir, "exercises"), course, topic, lang, code[1],
+                                     text, self.tools or {"python": None})
+        name = os.path.basename(folder)
+        if self.want_exercise or self.window("chat"):
+            exercise.open_in_vscode(folder, main)
+            return t("exercise_opened", name=name)
+        self.pending_exercise = (folder, main)
+        return t("exercise_saved", name=name)
+
     def ask_about(self, topic_id):
         """From the checklist: a question on that topic, in the chat."""
         self.open_chat()
         if not (self.waiting or self.bridge.busy):
             self.ask_question(topic_id)
 
-    def choose_topic(self):
+    def choose_topic(self, kind=None):
         """Gap-first topic: the course on screen right now, else mostly the one whose exam is nearest."""
         courses = [(c, d) for c, d in self.course_list() if self.mastery.summary(c)["total"]]
         if not courses:
@@ -225,7 +279,7 @@ class BuddyFeature(Feature):
         else:
             weights = [1 / (1 + d) if d is not None and d <= EXAM_WINDOW else 0.02 for _, d in courses]
             course = random.choices([c for c, _ in courses], weights)[0]
-        return self.mastery.pick(course, avoid=self.last_topic)
+        return self.mastery.pick(course, avoid=self.last_topic, kind=kind)
 
     def ask_review(self, missed):
         """Come back to a missed question, worded differently."""

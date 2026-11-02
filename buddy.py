@@ -45,7 +45,14 @@ Language: questions, answers to questions, explanations and anything else about 
 End your reply with tags on their own line (Popper reads and hides them):
 - When you ask a new question: [[topic: <concept, in English>]] [[source: <file name, or none>]]
 - When you judge an answer to your question: [[verdict: correct|partial|wrong]] [[topic: <concept>]]
-- When the student shows curiosity about something new: [[interest: <topic, in English>]]"""
+- When the student shows curiosity about something new: [[interest: <topic, in English>]]
+
+Coding exercises: when an idea is best practised by writing or running code (the student asks for one, or \
+the topic is about code), make the question a small coding exercise: say what to do, then give a short \
+starter file in one fenced code block (the only Markdown allowed) that compiles or runs as is, with TODOs \
+and a main or tests that print what to check. Use the language the course's slides use and one that this PC \
+has (see the context). Add [[exercise: c|python|ocaml]] to the tags. Popper saves the file and opens it in \
+VS Code, so don't explain how to set anything up."""
 
 
 def find_claude():
@@ -292,6 +299,7 @@ class ChatWindow:
         self.status = tk.Label(head, bg=BG, fg=ACCENT, font=f("Microsoft YaHei UI", 9))
         self.status.pack(side="left", padx=10)
         for key, cmd in (("buddy_folders", lambda: feature.open_folders()), ("buddy_checklist", feature.open_mastery),
+                         ("buddy_exercise", feature.ask_exercise),
                          ("buddy_snooze", feature.snooze_today), ("buddy_review", feature.review_now),
                          ("buddy_new_question", feature.ask_question)):
             b = tk.Label(head, text=t(key), bg=PANEL, fg=ACCENT, padx=10, pady=2, cursor="hand2",
