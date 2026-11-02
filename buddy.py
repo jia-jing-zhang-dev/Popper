@@ -75,19 +75,19 @@ class ClaudeBridge:
         self.busy = False
         threading.Thread(target=self._worker, daemon=True).start()
 
-    def ask(self, prompt, folders, session_id, on_done):
-        """on_done({"ok", "text", "session_id", "error"}) is called on the Tk thread."""
-        self.jobs.put((prompt, list(folders), session_id, on_done))
+    def ask(self, prompt, folders, session_id, on_done, system=None, timeout=CLAUDE_TIMEOUT):
+        """on_done({"ok", "text", "session_id", "error"}) is called on the Tk thread. `system` replaces the persona."""
+        self.jobs.put((prompt, list(folders), session_id, on_done, system, timeout))
 
     def _worker(self):
         while True:
-            prompt, folders, session_id, on_done = self.jobs.get()
+            prompt, folders, session_id, on_done, system, timeout = self.jobs.get()
             self.busy = True
-            result = self._run(prompt, folders, session_id)
+            result = self._run(prompt, folders, session_id, system, timeout)
             self.busy = False
             self.app.ui_q.put(("call", lambda r=result, f=on_done: f(r)))
 
-    def _run(self, prompt, folders, session_id):
+    def _run(self, prompt, folders, session_id, system=None, timeout=CLAUDE_TIMEOUT):
         exe = find_claude()
         if not exe:
             return {"ok": False, "error": t("buddy_no_claude")}
@@ -95,7 +95,7 @@ class ClaudeBridge:
         cmd = [exe, "-p", prompt, "--output-format", "json",
                "--tools", "Read,Glob,Grep", "--allowedTools", "Read", "Glob", "Grep",
                "--strict-mcp-config", "--permission-prompts", "none",
-               "--system-prompt", PERSONA.format(language=language)]
+               "--system-prompt", system or PERSONA.format(language=language)]
         for folder in folders:
             if os.path.isdir(folder):
                 cmd += ["--add-dir", folder]
@@ -103,7 +103,7 @@ class ClaudeBridge:
             cmd += ["--resume", session_id]
         try:
             proc = subprocess.run(cmd, cwd=self.workdir, capture_output=True, text=True, encoding="utf-8",
-                                  timeout=CLAUDE_TIMEOUT, stdin=subprocess.DEVNULL,
+                                  timeout=timeout, stdin=subprocess.DEVNULL,
                                   creationflags=subprocess.CREATE_NO_WINDOW)
             data = json.loads(proc.stdout or "{}")
         except subprocess.TimeoutExpired:
@@ -141,8 +141,11 @@ class BuddyStore:
                 question TEXT NOT NULL,
                 verdict  TEXT,              -- correct / partial / wrong, once answered
                 level    INTEGER DEFAULT 0, -- spaced-repetition step for missed topics
-                due      REAL               -- when to come back to it (missed ones only)
+                due      REAL,              -- when to come back to it (missed ones only)
+                topic_id INTEGER            -- the slide topic (mastery_topics) it was about
             )""")
+        if "topic_id" not in [c[1] for c in self.db.execute("PRAGMA table_info(buddy_questions)")]:
+            self.db.execute("ALTER TABLE buddy_questions ADD COLUMN topic_id INTEGER")
         self.db.execute("""
             CREATE TABLE IF NOT EXISTS buddy_interests (
                 topic TEXT PRIMARY KEY,
@@ -173,9 +176,9 @@ class BuddyStore:
     def messages(self, day):
         return self.db.execute("SELECT * FROM buddy_messages WHERE day=? ORDER BY ts", (day.isoformat(),)).fetchall()
 
-    def add_question(self, text, topic, source):
-        cur = self.db.execute("INSERT INTO buddy_questions (ts, topic, source, question) VALUES (?, ?, ?, ?)",
-                              (time.time(), topic, source, text))
+    def add_question(self, text, topic, source, topic_id=None):
+        cur = self.db.execute("INSERT INTO buddy_questions (ts, topic, source, question, topic_id) "
+                              "VALUES (?, ?, ?, ?, ?)", (time.time(), topic, source, text, topic_id))
         self.db.commit()
         return cur.lastrowid
 
@@ -288,7 +291,7 @@ class ChatWindow:
         tk.Label(head, text=t("buddy_title"), bg=BG, fg=FG, font=f("Microsoft YaHei UI", 14)).pack(side="left")
         self.status = tk.Label(head, bg=BG, fg=ACCENT, font=f("Microsoft YaHei UI", 9))
         self.status.pack(side="left", padx=10)
-        for key, cmd in (("buddy_folders", lambda: feature.open_folders()),
+        for key, cmd in (("buddy_folders", lambda: feature.open_folders()), ("buddy_checklist", feature.open_mastery),
                          ("buddy_snooze", feature.snooze_today), ("buddy_review", feature.review_now),
                          ("buddy_new_question", feature.ask_question)):
             b = tk.Label(head, text=t(key), bg=PANEL, fg=ACCENT, padx=10, pady=2, cursor="hand2",
@@ -325,7 +328,7 @@ class ChatWindow:
         self.view.tag_configure("note", foreground=FG_DIM, font=f("Microsoft YaHei UI", 9))
 
         top.bind("<Escape>", lambda e: top.destroy())
-        top.geometry(f"{int(560 * s)}x{int(620 * s)}")
+        top.geometry(f"{int(700 * s)}x{int(620 * s)}")
         self.reload()
         self.set_busy(feature.bridge.busy or feature.waiting)
         top.lift()

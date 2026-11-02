@@ -63,6 +63,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `vocab.py` | Word list (`Vocab`), review flash cards, word-list window |
 | `library.py` | Library check-in (`LibraryLog`), goals and dated to-dos with stopwatches (`TodoList`), `DatePicker`, `Celebration`, `TodoWindow`, `LibraryWindow` |
 | `buddy.py` | Study buddy: `ClaudeBridge` runs `claude -p` (one job at a time, on a worker thread, results back via `app.ui_q` `"call"`), `BuddyStore` (messages, questions with review dates, interests, one Claude session per day), chat and folder windows |
+| `mastery.py` | Exam-readiness checklist: `SlideBuilder` finds lecture decks (Claude sorts file names), extracts their text locally (pypdf / python-pptx) to `DATA_DIR/buddy/slides/`, has Claude list each deck's topics; `MasteryStore` tracks each topic with Bayesian Knowledge Tracing and picks gaps first; `MasteryWindow` |
 | `features/usage.py` | Claude plan usage badge: parses `claude -p /usage` (local, no quota) every 5 min; `app.set_badge` puts it on the card's top row |
 | `features/pet.py` | Desktop pet: transparent window (`-transparentcolor`) showing frames from `assets/pet/` (FluffyBlob, CC0; `MOODS` maps moods to frames, `HOP` is the jump); bobs, hops, wanders; sets `app.anchor` so the card sits above it and `app.card_drag` so dragging the card moves it |
 | `mascot.py` | The bubble on the card, drawn with PIL per mood (happy, blink, thinking, talking, worried, celebrate, sleepy); `app.mood()` picks it, `app.set_mood(mood, seconds)` shows one for a while |
@@ -81,6 +82,9 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
   `--strict-mcp-config`, `--permission-prompts none`, and the persona from `PERSONA`. Keep it read-only.
 - Replies end in `[[topic: ...]]`, `[[source: ...]]`, `[[verdict: ...]]`, `[[interest: ...]]` tags that
   `split_tags` reads and strips (it also strips Markdown and emoji, which Tk shows badly).
+- Academic content (questions, feedback, explanations) is always English; casual chat follows `ui_lang`.
+  Questions target slide topics from the mastery checklist: course on screen, else mostly the nearest exam
+  (an open goal whose title contains the course code), shaky and not-yet-covered topics first.
 - Every real call spends the owner's quota and takes 7-30 s. Test scheduling and book-keeping with
   a fake `bridge.ask` that queues a canned reply, and make real calls only for a final check.
 
@@ -90,7 +94,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
   Set `WORD_POPPER_HOME` to point them somewhere else; every test does this.
 - `vocab.db` holds every table: `words`, `library_sessions`, `todos`, `goals`, `journal`.
   Study time adds `focus_activity` and `focus_rules`; the buddy adds `buddy_messages`, `buddy_questions`,
-  `buddy_interests`, `buddy_sessions`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
+  `buddy_interests`, `buddy_sessions`, `mastery_files`, `mastery_topics` (and `buddy_questions.topic_id`). All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
 - Schema changes go in the store's constructor as `CREATE TABLE IF NOT EXISTS` plus `ALTER TABLE ...
   ADD COLUMN` guarded by `PRAGMA table_info`. The owner's real data must upgrade in place. Never drop
   or rewrite their tables.
