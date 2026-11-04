@@ -34,6 +34,12 @@ def set_autostart(enabled, script):
         if os.path.exists(STARTUP_LINK):
             os.remove(STARTUP_LINK)
         return
+    make_shortcut(STARTUP_LINK, script)
+
+
+def make_shortcut(link, script, icon=""):
+    """A .lnk that starts Popper (or, while it runs, closes it: see word_popper.py). `link` may start with
+    'Desktop\\', which is resolved by Windows, since the desktop is often moved into OneDrive."""
     if getattr(sys, "frozen", False):  # packaged exe: the shortcut points straight at it
         target, args = sys.executable, ""
     else:
@@ -41,10 +47,13 @@ def set_autostart(enabled, script):
         if not os.path.exists(target):
             target = sys.executable
         args = f'"{script}"'
-    ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:WP_LINK);"
+    ps = ("$l=$env:WP_LINK; if ($l.StartsWith('Desktop\\')) "
+          "{ $l=Join-Path ([Environment]::GetFolderPath('Desktop')) $l.Substring(8) };"
+          "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($l);"
           "$s.TargetPath=$env:WP_TARGET; $s.Arguments=$env:WP_ARGS;"
-          "$s.WorkingDirectory=$env:WP_DIR; $s.Description='Popper'; $s.Save()")
-    env = dict(os.environ, WP_LINK=STARTUP_LINK, WP_TARGET=target, WP_ARGS=args,
+          "$s.WorkingDirectory=$env:WP_DIR; $s.Description='Popper';"
+          "if ($env:WP_ICON) { $s.IconLocation=$env:WP_ICON }; $s.Save()")
+    env = dict(os.environ, WP_LINK=link, WP_TARGET=target, WP_ARGS=args, WP_ICON=icon,
                WP_DIR=os.path.dirname(script))
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=env,
                    creationflags=subprocess.CREATE_NO_WINDOW, check=False)

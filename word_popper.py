@@ -29,7 +29,7 @@ from i18n import t
 from languages import LANGUAGES, label, normalize, voice_for
 from mascot import Mascot
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
-from settings_window import SettingsWindow, rename_startup_link
+from settings_window import SettingsWindow, make_shortcut, rename_startup_link
 from speech import Speaker
 from features import FEATURES
 from journal import Journal
@@ -689,10 +689,46 @@ class App:
         self.root.mainloop()
 
 
+def make_desktop_icon(settings):
+    """Once: a Popper icon on the desktop (the pet's face) that opens Popper, or closes it while it runs.
+    Only once, so an icon the owner deleted stays deleted."""
+    if settings.get("desktop_icon_made"):
+        return
+    ico = os.path.join(DATA_DIR, "popper.ico")
+    try:
+        face = Image.open(os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))),
+                                       "assets", "pet", "frame_00.png"))
+        side = max(face.size)
+        square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        square.paste(face, ((side - face.width) // 2, (side - face.height) // 2))
+        square.save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    except OSError:
+        ico = ""
+    make_shortcut("Desktop\\Popper.lnk", SCRIPT_PATH, ico)
+    settings["desktop_icon_made"] = True
+    save_settings(settings)
+
+
 if __name__ == "__main__":
-    # Single instance: launching again while it's running does nothing
-    # (the mutex keeps its old name so an older copy and this one still exclude each other)
-    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "WordPopperSingleInstance")
-    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+    # Single instance: launching again while it's running closes the running copy, so the desktop
+    # icon opens and closes Popper (the mutex keeps its old name so an older copy and this one still
+    # exclude each other)
+    k32 = ctypes.windll.kernel32
+    _mutex = k32.CreateMutexW(None, False, "WordPopperSingleInstance")
+    if k32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        quit_event = k32.OpenEventW(0x0002, False, "PopperQuit")  # EVENT_MODIFY_STATE
+        if quit_event:
+            k32.SetEvent(quit_event)
         sys.exit()
-    App().run()
+    app = App()
+    _quit_event = k32.CreateEventW(None, True, False, "PopperQuit")
+
+    def watch_quit():
+        if k32.WaitForSingleObject(_quit_event, 0) == 0:  # signalled by a second launch
+            app.root.destroy()
+        else:
+            app.root.after(500, watch_quit)
+
+    app.root.after(500, watch_quit)
+    app.root.after(3000, lambda: make_desktop_icon(app.settings))
+    app.run()

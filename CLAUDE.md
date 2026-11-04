@@ -28,6 +28,10 @@ run.bat                                     :: start (pythonw, no console)
   A broader match also kills the shell running the command, because its command line contains the
   same text. Then start `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Popper.lnk`
   (`rename_startup_link()` moves an old `Word Popper.lnk` over on start).
+- Launching again while it runs **closes** the running copy (it sets the named event `PopperQuit`), so the
+  desktop icon `Popper.lnk` (made once on first start, `make_desktop_icon`; pet-face `popper.ico` in DATA_DIR)
+  opens and closes Popper. Starting a `.lnk` with `Start-Process` from Claude's shell doesn't survive; use
+  `os.startfile`.
 - Settings changed by editing `settings.json` only take effect if the app is stopped first,
   otherwise it writes its in-memory settings back over the file.
 
