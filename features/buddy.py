@@ -1,109 +1,43 @@
-"""Study buddy: chat with Claude (through the owner's Claude Code login) about their own course materials."""
+"""Study buddy: chat with Claude (through the owner's Claude Code login); a good morning, an evening nudge and
+once a day something new."""
 
 import datetime as dt
 import os
-import random
-import threading
 import time
 
-import exercise
-import mastery
-from buddy import SLIDES_RE, BuddyStore, ChatWindow, ClaudeBridge, FolderDialog, split_tags
+from buddy import BuddyStore, ChatWindow, ClaudeBridge, split_tags
 from focus import day_range, idle_seconds
 from i18n import t
-from journal import Line, Section
-from mastery import MasteryStore, MasteryWindow, SlideBuilder, course_code, exam_days, past_exams, status
 
 from .base import Feature
 
 
 QUIET_FROM, QUIET_UNTIL = 23, 8  # no unprompted messages between 23:00 and 08:00
-DAILY_MAX = 20                   # unprompted questions per day, at most
-GAP_MINUTES = (15, 20)           # minutes of actual study between unprompted questions
 EVENING_HOUR, EVENING_MINIMUM = 21, 30 * 60  # after 21:00, nudge if under 30 min of study today
 DISCOVERY_HOUR, DISCOVERY_MINIMUM = 14, 30 * 60  # one "something new" a day, after 14:00 and 30 min of study
-REVIEW_SHARE = 0.4                # when a missed question is due, how often it replaces a new one
-EXAM_WINDOW = 30                  # days: exams closer than this decide which course gets asked about
-NEAREST_SHARE = 0.7               # how often the course with the nearest exam is picked (the rest interleaves)
-SLIDE_SCAN_MS = 6 * 3600 * 1000   # look for new slide decks every 6 hours
 
 
 class BuddyFeature(Feature):
     id = "buddy"
     name_key = "feat_buddy"
-    default_on = False  # sends course material and what's on screen to Claude, so it's opt-in
+    default_on = False  # chats and what's on screen go to Claude, so it's opt-in
 
     def start(self):
         self.store = BuddyStore(self.app.vocab.db)
-        self.mastery = MasteryStore(self.app.vocab.db)
-        workdir = os.path.join(self.app.data_dir, "buddy")
-        self.bridge = ClaudeBridge(self.app, workdir)
-        # reading slides takes minutes, so it gets its own Claude Code process and never blocks the chat
-        self.builder = SlideBuilder(self, ClaudeBridge(self.app, workdir), self.mastery)
-        self.pending_topic = None         # the slide topic the question being asked is about
-        self.last_topic = None
-        self.want_exercise = False        # the student asked for a coding exercise: open it right away
-        self.pending_exercise = None      # (folder, file) saved while the chat was closed; opens with the chat
-        self.pending_slides = None        # (deck, slides) to show when the chat opens
-        self.shown_slides = None          # the last (deck, first slide) shown, so it isn't opened twice
-        self.tools = {}
-        self.exams_cache = {}             # course -> (time, [past exam text files])
-
-        def detect():
-            tools = exercise.detect_tools()
-            self.app.ui_q.put(("call", lambda: setattr(self, "tools", tools)))
-        threading.Thread(target=detect, daemon=True).start()
+        self.bridge = ClaudeBridge(self.app, os.path.join(self.app.data_dir, "buddy"))
         self.waiting = False
         self.retried = False
-        self.last_question = time.time()  # studying since Popper started counts toward the first question
-        self.gap = random.uniform(*GAP_MINUTES) * 60
         self.active_seconds = 0           # fallback count when study time is off
         self.every(60_000, self.tick)
-        self.app.root.after(20_000, lambda: self.on and self.folders() and self.builder.start())
-        self.every(SLIDE_SCAN_MS, self.builder.start)
-
-    # ---------- settings
-
-    def folders(self):
-        return list(self.app.settings.get("buddy_folders", []))
-
-    def set_folders(self, folders):
-        self.app.settings["buddy_folders"] = list(dict.fromkeys(folders))
-        self.app.save()
-        self.builder.start()
 
     # ---------- menu and windows
 
     def menu_items(self, menu):
         menu.add_command(label=t("menu_buddy"), command=self.open_chat)
-        menu.add_command(label=t("menu_mastery"), command=self.open_mastery)
 
     def open_chat(self):
         self.app.clear_notice()
         self.show("chat", lambda: ChatWindow(self.app, self))
-        if self.pending_slides:
-            self.open_slides(*self.pending_slides)
-        if self.pending_exercise:
-            exercise.open_in_vscode(*self.pending_exercise)
-            self.pending_exercise = None
-
-    def open_mastery(self):
-        self.show("mastery", lambda: MasteryWindow(self.app, self))
-
-    def mastery_changed(self):
-        win = self.window("mastery")
-        if win:
-            win.refresh()
-
-    def course_list(self):
-        """[(course, days to its exam or None)], nearest exam first."""
-        goals = self.app.todos.open_goals()
-        courses = list(dict.fromkeys([course_code(f) for f in self.folders()] + self.mastery.courses()))
-        pairs = [(c, exam_days(c, goals)) for c in courses]
-        return sorted(pairs, key=lambda p: (p[1] is None, p[1] if p[1] is not None else 0))
-
-    def open_folders(self):
-        self.show("folders", lambda: FolderDialog(self.app, self))
 
     def snooze_today(self):
         self.app.settings["buddy_snooze"] = dt.date.today().isoformat()
@@ -125,23 +59,13 @@ class BuddyFeature(Feature):
         """What the buddy should know at the start of each day's conversation."""
         today = dt.date.today()
         lines = [t("buddy_ctx_today", date=today.isoformat(), weekday=today.strftime("%A"))]
-        folders = [os.path.basename(f) for f in self.folders()]
-        if folders:
-            lines.append(t("buddy_ctx_courses", courses=", ".join(folders)))
         for g in self.app.todos.open_goals():
             if g["deadline"]:
                 days = (dt.date.fromisoformat(g["deadline"]) - today).days
                 if days >= 0:
                     lines.append(t("buddy_ctx_goal", title=g["title"], days=days, date=g["deadline"]))
-        if self.tools:
-            lines.append(t("buddy_ctx_tools", tools=exercise.describe(self.tools)))
         if self.app.feature("bond").on:
             lines.append(self.app.feature("bond").buddy_context())
-        for course, _ in self.course_list():
-            sm = self.mastery.summary(course)
-            if sm["total"]:
-                lines.append(t("buddy_ctx_ready", course=course, total=sm["total"], known=sm["known"],
-                               shaky=sm["shaky"], new=sm["new"]))
         return "\n".join(["[context]"] + lines + ["[/context]"])
 
     def send(self, prompt, kind):
@@ -150,13 +74,9 @@ class BuddyFeature(Feature):
         session_id = self.store.session(day)
         if not session_id:
             prompt = self.context() + "\n\n" + prompt
-        if kind == "question":
-            # later in a long day's session Claude copies its own earlier replies more than the persona
-            prompt += "\n\n" + t("buddy_format")
         self.waiting = True
         self._busy(True)
-        self.bridge.ask(prompt, self.folders(), session_id,
-                        lambda r, p=prompt, k=kind, d=day, s=session_id: self.on_reply(r, p, k, d, s))
+        self.bridge.ask(prompt, session_id, lambda r, p=prompt, k=kind, d=day, s=session_id: self.on_reply(r, p, k, d, s))
 
     def chat(self, text):
         self.store.say("me", text)
@@ -180,265 +100,15 @@ class BuddyFeature(Feature):
         self.retried = False
         if result.get("session_id"):
             self.store.set_session(day, result["session_id"])
-        raw, code = exercise.take_code(result["text"])
-        text, tags = split_tags(raw)
-        # Popper adds its own slides line (a link); drop any Claude wrote itself
-        text = "\n".join(line for line in text.splitlines() if not SLIDES_RE.match(line.strip())).strip()
-        topic_id = self.pending_topic
-        if "verdict" in tags:  # an explanation of an answer: about the question's topic (read before grading)
-            question = self.store.open_question()
-            topic_id = question["topic_id"] if question else None
-        verdict = tags.get("verdict", "").lower()
-        before = self.mastery.topic(topic_id) if topic_id and verdict else None
-        self.on_tags(text, tags, kind)
-        if verdict in ("correct", "partial", "wrong") and self.app.feature("bond").on:
-            self.app.root.after(500, self.app.feature("bond").sync)
-        if verdict in ("correct", "partial", "wrong"):
-            text = self.badge(verdict, before) + "\n" + text
-        if code:
-            text += "\n" + self.save_exercise(tags, code, text, topic_id)
-        slides_note = self.show_slides(tags, topic_id)
-        if slides_note:
-            text += "\n" + slides_note
-        if kind == "question":
-            self.pending_topic = None
-            self.want_exercise = False
+        text, tags = split_tags(result["text"])
+        if tags.get("interest"):
+            self.store.like(tags["interest"], 2)
         self.store.say("buddy", text, kind)
         win = self.window("chat")
         if win:
             win.add_line("buddy", text)
-            win.set_context(self.current_context())
         elif kind != "chat":
             self.app.notify(t("buddy_has_message"), self.open_chat)
-
-    def on_tags(self, text, tags, kind):
-        """Book-keeping from the tags at the end of a reply."""
-        if "verdict" in tags:
-            question = self.store.open_question()
-            verdict = tags["verdict"].lower()
-            if question:
-                self.store.grade(question["id"], verdict)
-                topic_id = question["topic_id"] or self.mastery.find(tags.get("topic"))
-                if topic_id and verdict in ("correct", "partial", "wrong"):
-                    self.mastery.record(topic_id, verdict)
-                    self.mastery_changed()
-        elif "topic" in tags or kind == "question":
-            topic_id = (self.pending_topic if kind == "question" else None) or self.mastery.find(tags.get("topic"))
-            self.store.add_question(text, tags.get("topic"), tags.get("source"), topic_id)
-            self.last_topic = topic_id
-        if tags.get("interest"):
-            self.store.like(tags["interest"], 2)
-        elif kind == "chat" and tags.get("topic") and "verdict" not in tags:
-            self.store.like(tags["topic"], 0.5)
-
-    def ask_question(self, topic_id=None):
-        """Ask one question, about a gap on the slides when the checklist is built (button and scheduler)."""
-        self.last_question = time.time()
-        self.gap = random.uniform(*GAP_MINUTES) * 60
-        self.active_seconds = 0
-        row = self.mastery.topic(topic_id) if topic_id else self.choose_topic()
-        if row:
-            self.pending_topic = row["id"]
-            prompt = t("buddy_prompt_topic", topic=row["topic"], course=row["course"],
-                       deck=os.path.basename(row["path"] or ""), file=row["text_file"] or row["path"] or "?",
-                       slides=row["slides"] or "?", level=t("buddy_level_" + status(row)))
-            prompt += self.past_style(row["course"])
-        else:
-            prompt = t("buddy_prompt_question")
-            titles = self.studying_now()
-            if titles:
-                prompt = t("buddy_ctx_now", titles="; ".join(titles)) + "\n" + prompt
-        self.send(prompt, "question")
-
-    def ask_exercise(self):
-        """The chat's "Code it" button: a coding exercise on a slide topic about code, opened in VS Code."""
-        if self.waiting or self.bridge.busy:
-            return
-        row = self.choose_topic(kind="code")
-        self.want_exercise = True
-        self.last_question = time.time()
-        if row:
-            self.pending_topic = row["id"]
-            prompt = t("buddy_prompt_exercise", topic=row["topic"], course=row["course"],
-                       deck=os.path.basename(row["path"] or ""), file=row["text_file"] or row["path"] or "?",
-                       slides=row["slides"] or "?") + self.past_style(row["course"])
-        else:
-            prompt = t("buddy_prompt_exercise_any")
-        self.send(prompt, "question")
-
-    def past_exams(self, course):
-        """The course's past exams as text files (cached for an hour; new files are picked up after that)."""
-        cached = self.exams_cache.get(course)
-        if cached and time.time() - cached[0] < 3600:
-            return cached[1]
-        folder = next((f for f in self.folders() if course_code(f) == course), None)
-        files = past_exams(folder, os.path.join(self.bridge.workdir, "exams", course.replace(" ", "_")),
-                           self.bridge.workdir) if folder and os.path.isdir(folder) else []
-        self.exams_cache[course] = (time.time(), files)
-        return files
-
-    def past_style(self, course):
-        """A line asking to model the question on the course's past exams, if there are any."""
-        files = self.past_exams(course)[:2]  # every question reads these, so only a couple
-        return (" " + t("buddy_past_style", files="; ".join(f'"{f}"' for f in files)) if files else "") \
-            + self.exam_style(course)
-
-    def exam_style(self, course):
-        """A line with what the instructor said about the next exam (its format and the kind of questions),
-        from DATA_DIR/buddy/exam_notes/<course>.txt, so questions practise for that exam."""
-        path = os.path.join(self.bridge.workdir, "exam_notes", course + ".txt")
-        try:
-            with open(path, encoding="utf-8") as f:
-                notes = " ".join(f.read().split())
-        except OSError:
-            return ""
-        return " " + t("buddy_exam_style", notes=notes[:1500]) if notes else ""
-
-    def ask_past_exam(self):
-        """The chat's "Past exam" button: a real problem from a past exam of the next exam's course, graded."""
-        if self.waiting or self.bridge.busy:
-            return
-        for course, days in self.course_list():
-            files = self.past_exams(course)
-            if files and days is not None:
-                break
-        else:
-            self.note(t("buddy_no_past"))
-            return
-        scope = [os.path.basename(r["path"]) for r in self.mastery.files(course, "done") if r["exam"]]
-        self.last_question = time.time()
-        self.send(t("buddy_prompt_past", course=course, files="; ".join(f'"{f}"' for f in files),
-                    scope=", ".join(scope) or "?"), "question")
-
-    def show_slides(self, tags, topic_id):
-        """Open the deck a question or explanation is about, at its slides, so the student can follow along.
-        Returns the line added to the chat (or '')."""
-        row = self.mastery.topic(topic_id) if topic_id else None
-        deck = self.mastery.deck(tags.get("source")) or (row["path"] if row else None)
-        if not deck or not os.path.exists(deck):
-            return ""
-        same = row and row["path"] == deck
-        slides = tags.get("slides") or (row["slides"] if same else "") or "1"
-        slides = mastery.short_slides(slides)
-        if self.window("chat"):
-            self.open_slides(deck, slides)
-        else:
-            self.pending_slides = (deck, slides)
-        return t("slides_note", deck=os.path.basename(deck), slides=slides)
-
-    def open_slides(self, deck, slides):
-        self.pending_slides = None
-        key = (deck, mastery.first_slide(slides))
-        if key != self.shown_slides:
-            self.shown_slides = key
-            mastery.open_slides(deck, slides)
-
-    def save_exercise(self, tags, code, text, topic_id):
-        """Write the starter code as a runnable folder; open VS Code now if the student is here for it.
-        Returns the line added to the chat."""
-        lang = exercise.lang_of(tags.get("exercise"), code[0])
-        if not lang:
-            return t("exercise_unknown", lang=tags.get("exercise") or code[0] or "?")
-        row = self.mastery.topic(topic_id) if topic_id else None
-        course = row["course"] if row else (tags.get("source") or "practice")
-        topic = row["topic"] if row else (tags.get("topic") or "exercise")
-        folder, main = exercise.make(os.path.join(self.app.data_dir, "exercises"), course, topic, lang, code[1],
-                                     text, self.tools or {"python": None})
-        name = os.path.basename(folder)
-        if self.want_exercise or self.window("chat"):
-            exercise.open_in_vscode(folder, main)
-            return t("exercise_opened", name=name)
-        self.pending_exercise = (folder, main)
-        return t("exercise_saved", name=name)
-
-    def badge(self, verdict, before):
-        """The coloured first line of graded feedback: how it went, and how the topic moved."""
-        line = t("verdict_" + verdict)
-        after = self.mastery.topic(before["id"]) if before else None
-        if after:
-            line += "  ·  " + t("mastery_move", topic=after["topic"], before=t("status_" + status(before)),
-                                after=t("status_" + status(after)))
-        bond = self.app.feature("bond")
-        if bond.on:  # what the answer earned with 泡泡; a wrong answer still counts
-            line += "  ·  " + bond.points_note(verdict)
-        return line
-
-    def current_context(self):
-        """What the open question is about, for the bar above the input."""
-        q = self.store.open_question()
-        row = self.mastery.topic(q["topic_id"]) if q and q["topic_id"] else None
-        if row:
-            return t("buddy_now", topic=row["topic"], course=row["course"])
-        return t("buddy_pick_hint")
-
-    def quick(self, action):
-        """The chat's one-click replies: a hint, an explanation (counts as not known), or a new question."""
-        if self.waiting or self.bridge.busy:
-            return
-        if action == "skip":
-            self.ask_question()
-            return
-        label = t("buddy_" + action)
-        self.store.say("me", label)
-        win = self.window("chat")
-        if win:
-            win.add_line("me", label)
-        self.send(t("buddy_say_" + action), "chat")
-
-    def reopen_current_slides(self):
-        """Ctrl+O in the chat: show the open question's slides again."""
-        q = self.store.open_question()
-        row = self.mastery.topic(q["topic_id"]) if q and q["topic_id"] else None
-        if row and row["path"]:
-            self.shown_slides = None
-            self.open_slides(row["path"], row["slides"] or "1")
-
-    def reopen_slides(self, name, slides):
-        """A click on the slides line in the chat."""
-        path = self.mastery.deck(name)
-        if path:
-            self.shown_slides = None
-            self.open_slides(path, slides)
-
-    def ask_about(self, topic_id):
-        """From the checklist: a question on that topic, in the chat."""
-        self.open_chat()
-        if not (self.waiting or self.bridge.busy):
-            self.ask_question(topic_id)
-
-    def choose_topic(self, kind=None):
-        """Gap-first topic: the course on screen right now, else mostly the one whose exam is nearest."""
-        courses = [(c, d) for c, d in self.course_list() if self.mastery.summary(c)["total"]]
-        if not courses:
-            return None
-        screen = " ".join(self.studying_now()).replace(" ", "").upper()
-        on_screen = [c for c, _ in courses if c.replace(" ", "").upper() in screen]
-        exams = [(d, c) for c, d in courses
-                 if d is not None and d <= EXAM_WINDOW and self.mastery.summary(c)["ready"] < 100]
-        if on_screen:
-            course = on_screen[0]
-        elif exams and random.random() < NEAREST_SHARE:
-            course = min(exams)[1]
-        else:
-            weights = [1 / (1 + d) if d is not None and d <= EXAM_WINDOW else 0.02 for _, d in courses]
-            course = random.choices([c for c, _ in courses], weights)[0]
-        return self.mastery.pick(course, avoid=self.last_topic, kind=kind)
-
-    def ask_review(self, missed):
-        """Come back to a missed question, worded differently."""
-        self.last_question = time.time()
-        self.gap = random.uniform(*GAP_MINUTES) * 60
-        self.active_seconds = 0
-        self.store.take_review(missed["id"])
-        self.pending_topic = missed["topic_id"]
-        self.send(t("buddy_prompt_review", question=missed["question"], topic=missed["topic"] or "?"), "question")
-
-    def review_now(self):
-        due = self.store.due_reviews()
-        if due:
-            self.ask_review(due[0])
-        else:
-            self.note(t("buddy_no_reviews"))
 
     def discover(self):
         """Once a day: something interesting just beyond the courses, picked from what the student likes."""
@@ -448,39 +118,6 @@ class BuddyFeature(Feature):
         if titles:
             prompt = t("buddy_ctx_now", titles="; ".join(titles)) + "\n" + prompt
         self.send(prompt, "discovery")
-
-    def journal_sections(self):
-        return [self.journal_section, self.readiness_section]
-
-    def readiness_section(self, app, start, end):
-        """Exam readiness per course on today's page; slide topics answered that day on any page."""
-        lines, summary = [], []
-        if start <= time.time() < end:
-            for course, days in self.course_list():
-                sm = self.mastery.summary(course)
-                if sm["total"]:
-                    when = t("mastery_no_exam") if days is None else (
-                        t("mastery_exam", days=days) if days else t("mastery_exam_today"))
-                    lines.append(Line(f"{course} · {t('mastery_ready', ready=sm['ready'])}",
-                                      note=t("mastery_counts", known=sm["known"], shaky=sm["shaky"], new=sm["new"]),
-                                      right=when, on_click=self.open_mastery))
-                    summary.append(f"{course} {sm['ready']}%")
-        mark = {"correct": "✓", "partial": "~", "wrong": "×"}
-        answered = self.mastery.answered_on(start, end)
-        for topic, verdict in answered:
-            lines.append(Line(f"{mark.get(verdict, '?')} {topic}"))
-        if not lines:
-            return None
-        return Section(t("j_mastery"), "  ".join(summary[:3]) or t("j_mastery_sum", n=len(answered)), lines)
-
-    def journal_section(self, app, start, end):
-        asked, verdicts, topics = self.store.day_summary(start, end)
-        if not asked:
-            return None
-        lines = [Line(t("j_buddy_result", correct=verdicts.get("correct", 0), partial=verdicts.get("partial", 0),
-                        wrong=verdicts.get("wrong", 0)))]
-        lines += [Line(topic) for topic in topics[:8]]
-        return Section(t("j_buddy"), t("j_buddy_sum", n=asked), lines)
 
     # ---------- being a fussy friend
 
@@ -513,25 +150,12 @@ class BuddyFeature(Feature):
         start, _ = day_range(dt.date.today())
         if dt.datetime.now().hour < 12 and not self.said_today("morning"):  # a "good morning" only in the morning
             self.morning()
-            return
-        if (dt.datetime.now().hour >= EVENING_HOUR and not self.said_today("evening")
+        elif (dt.datetime.now().hour >= EVENING_HOUR and not self.said_today("evening")
                 and self.studied_since(start) < EVENING_MINIMUM):
             self.evening()
-            return
-        open_q = self.store.open_question()
-        if open_q and time.time() - open_q["ts"] < 40 * 60:
-            return  # wait for an answer before asking more
-        if (dt.datetime.now().hour >= DISCOVERY_HOUR and not self.said_today("discovery")
+        elif (dt.datetime.now().hour >= DISCOVERY_HOUR and not self.said_today("discovery")
                 and self.studied_since(start) >= DISCOVERY_MINIMUM):
             self.discover()
-            return
-        asked = self.store.db.execute("SELECT COUNT(*) FROM buddy_questions WHERE ts >= ?", (start,)).fetchone()[0]
-        if asked < DAILY_MAX and self.studied_since(self.last_question) >= self.gap:
-            due = self.store.due_reviews()
-            if due and random.random() < REVIEW_SHARE:
-                self.ask_review(due[0])
-            else:
-                self.ask_question()
 
     def local_message(self, text, kind, mood="talking"):
         """A message Popper writes itself (no Claude call)."""
@@ -544,25 +168,16 @@ class BuddyFeature(Feature):
 
     def morning(self):
         today = dt.date.today()
-        exams = []
+        deadlines = []
         for g in self.app.todos.open_goals():
             if g["deadline"]:
                 days = (dt.date.fromisoformat(g["deadline"]) - today).days
                 if 0 <= days <= 21:
-                    exams.append((days, g["title"]))
+                    deadlines.append((days, g["title"]))
         lines = [t("buddy_morning")]
-        for days, title in sorted(exams)[:3]:
+        for days, title in sorted(deadlines)[:3]:
             lines.append(t("buddy_morning_exam", title=title, days=days) if days
                          else t("buddy_morning_today", title=title))
-        due = self.store.db.execute("SELECT COUNT(*) FROM buddy_questions WHERE due IS NOT NULL AND due <= ?",
-                                    (time.time(),)).fetchone()[0]
-        for course, days in self.course_list()[:2]:
-            sm = self.mastery.summary(course)
-            if sm["total"] and days is not None and days <= 21:
-                lines.append(t("buddy_morning_ready", course=course, ready=sm["ready"], new=sm["new"],
-                               shaky=sm["shaky"]))
-        if due:
-            lines.append(t("buddy_morning_review", n=due))
         self.local_message("\n".join(lines), "morning")
 
     def evening(self):

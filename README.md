@@ -42,17 +42,14 @@ screenshot OCR, settings, and spaced-repetition review.
 
 ### Features (each can be turned off in Settings)
 
-- **Study buddy (Claude).** A slightly fussy friend that keeps you learning. It runs Claude Code
-  in the background with the Claude login already on your computer (no API key), reads only the
-  course folders you pick, and notices what you have open. After 15-20 minutes of real study it
-  asks one question about that material in a small chat window; it grades your answer, explains,
-  and brings missed questions back after 1, 3, 7 and 14 days. Mornings bring exam countdowns,
-  evenings a nudge if you barely studied, and once a day it shares something new just beyond your
-  courses, picked from what you've been curious about. Quiet 23:00-08:00 and capped at 20
-  questions a day. Course text, window titles and your messages go to Claude. Off by default.
-- **泡泡's bond.** Studying brings you closer to 泡泡. Answering its questions (a wrong answer
-  still counts), mastering slide topics, LeetCode, word review, finished tasks and goals, library visits and
-  study time (capped per day) earn ♥. Levels unlock a nickname 泡泡 calls you and things it wears (sprout,
+- **Study buddy (Claude).** A slightly fussy friend to chat with while you study. It runs Claude
+  Code in the background with the Claude login already on your computer (no API key) and reads none
+  of your files. Mornings bring deadline countdowns from your goals, evenings a nudge if you barely
+  studied, and once a day it shares something new, picked from what you've been curious about.
+  Quiet 23:00-08:00. Your messages and the titles of the study windows you have open go to Claude.
+  Off by default.
+- **泡泡's bond.** Studying brings you closer to 泡泡. Word review (a forgotten word still counts),
+  finished tasks and goals, library visits and study time (capped per day) earn ♥. Levels unlock a nickname 泡泡 calls you and things it wears (sprout,
   bow, grad cap, star clip, crown), and the desktop pet grows a little. The bond never goes down and there's
   no streak to lose, so rest days are fine. Points tied to practice rather than time, and no loss-framed
   streaks, follow the research on rewards and motivation (self-determination theory).
@@ -127,7 +124,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
 | Look back on a day and write a reflection | Right-click → **Journal…** |
-| Chat with the study buddy, get a question, retry missed ones | Right-click → **Chat with Popper…**, or click the card when it says Popper has a question |
+| Chat with the study buddy | Right-click → **Chat with Popper…**, or click the card when it says Popper has a message |
 
 Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
 your word list.
@@ -209,8 +206,9 @@ vocab.py            SQLite word list, review window, word-list window
 library.py          library check-in sessions, streaks, goals and to-dos, and their windows
 journal.py          day-by-day journal built from each feature's sections, with written reflections
 focus.py            study-time detection: foreground window + idle time, rules, the study-time window
-buddy.py            study buddy: runs `claude -p` with read-only tools on the course folders, chat window, its tables
-features/           one module per feature (review, todos, library, journal); copy _template.py to add one
+buddy.py            study buddy: runs `claude -p`, the chat window, its tables
+bond.py             泡泡's bond: points, levels, accessories, the bond window
+features/           one module per feature (review, todos, library, journal...); copy _template.py to add one
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags
 i18n.py             interface strings

@@ -7,12 +7,11 @@ from .bond import BondFeature
 from .buddy import BuddyFeature
 from .focus import FocusFeature
 from .journal import JournalFeature
-from .leetcode import LeetCodeFeature
 from .library import LibraryFeature
 from .pet import PetFeature
 from .review import ReviewFeature
 from .todos import TodosFeature
 from .usage import UsageFeature
 
-FEATURES = [PetFeature, BondFeature, BuddyFeature, LeetCodeFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature,
+FEATURES = [PetFeature, BondFeature, BuddyFeature, ReviewFeature, TodosFeature, FocusFeature, LibraryFeature, JournalFeature,
             UsageFeature]

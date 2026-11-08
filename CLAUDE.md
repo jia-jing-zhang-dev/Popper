@@ -66,13 +66,10 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `i18n.py` | Every UI string, `t(key, **kw)` |
 | `vocab.py` | Word list (`Vocab`), review flash cards, word-list window |
 | `library.py` | Library check-in (`LibraryLog`), goals and dated to-dos with stopwatches (`TodoList`), `DatePicker`, `Celebration`, `TodoWindow`, `LibraryWindow` |
-| `buddy.py` | Study buddy: `ClaudeBridge` runs `claude -p` (one job at a time, on a worker thread, results back via `app.ui_q` `"call"`), `BuddyStore` (messages, questions with review dates, interests, one Claude session per day), chat and folder windows |
-| `mastery.py` | Exam-readiness checklist: `SlideBuilder` finds lecture decks (Claude sorts file names), extracts their text locally (pypdf / python-pptx) to `DATA_DIR/buddy/slides/`, has Claude list each deck's topics; `MasteryStore` tracks each topic with Bayesian Knowledge Tracing and picks gaps first; `MasteryWindow` |
-| `exercise.py` | Coding exercises: a reply tagged `[[exercise: c|python|ocaml]]` with a fenced starter file becomes a folder in `DATA_DIR/exercises/` (Makefile for C, `.vscode/tasks.json` so Ctrl+Shift+B runs it, README) opened in VS Code; C and OCaml run in WSL (`detect_tools`), since Smart App Control blocks freshly built native compilers |
-| `leetcode.py`, `features/leetcode.py` | LeetCode plan: NeetCode 150 Easy+Medium in pattern order (data from leetcode-py, Apache-2.0), `LeetCodeStore` (`leetcode_problems`, `leetcode_attempts`: timed attempts rated clean/hint/solution, re-solve dates), `PlanWindow`; starting a problem opens its leetcode.com page, a leetcode-py folder in `DATA_DIR/leetcode/` in VS Code (Ctrl+Shift+B runs its pytest suite with Popper's Python) and the matching CSE 373 deck |
+| `buddy.py` | Study buddy: `ClaudeBridge` runs `claude -p` (one job at a time, on a worker thread, results back via `app.ui_q` `"call"`), `BuddyStore` (messages, interests, one Claude session per day), chat window |
 | `features/usage.py` | Claude plan usage badge: parses `claude -p /usage` (local, no quota) every 5 min; `app.set_badge` puts it on the card's top row |
 | `features/pet.py` | Desktop pet: transparent window (`-transparentcolor`) showing frames from `assets/pet/` (FluffyBlob, CC0; `MOODS` maps moods to frames, `HOP` is the jump); bobs, hops, wanders; sets `app.anchor` so the card sits above it and `app.card_drag` so dragging the card moves it |
-| `bond.py`, `features/bond.py` | 泡泡's bond: `BondStore` (`bond_points`, one row per `(source, ref)`) collects ♥ from other features' tables on each `sync` (graded buddy questions, mastered topics, LeetCode attempts, done tasks/goals, library visits, study time per day) plus word reviews via `award` in `Vocab.grade`; daily caps for words and study time; never decreases, no streaks. Levels unlock a nickname (in the buddy's context) and accessories `wear` draws on the pet, which also grows a little (`pet_style`, `PetWindow.restyle`); `LevelUp` card, `BondWindow` |
+| `bond.py`, `features/bond.py` | 泡泡's bond: `BondStore` (`bond_points`, one row per `(source, ref)`) collects ♥ from other features' tables on each `sync` (done tasks/goals, library visits, study time per day) plus word reviews via `award` in `Vocab.grade`; daily caps for words and study time; never decreases, no streaks. Levels unlock a nickname (in the buddy's context) and accessories `wear` draws on the pet, which also grows a little (`pet_style`, `PetWindow.restyle`); `LevelUp` card, `BondWindow` |
 | `mascot.py` | The bubble on the card, drawn with PIL per mood (happy, blink, thinking, talking, worried, celebrate, sleepy); `app.mood()` picks it, `app.set_mood(mood, seconds)` shows one for a while |
 | `focus.py` | Study-time detection: samples the foreground window and idle time every 5 s into per-minute buckets keyed by program/site; default rules plus the owner's overrides decide what counts |
 | `journal.py` | Journal store and window; a page is the sections of every feature that's on |
@@ -85,39 +82,28 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 - It calls the **Claude Code CLI** (`claude -p ... --output-format json`), so it runs on the owner's
   Claude subscription login, not an API key. If replies fail with an auth error, the CLI's login has
   expired. The owner runs `claude auth login` in a terminal; never enter credentials for them.
-- The CLI gets only `--tools Read,Glob,Grep`, `--add-dir` for the folders in `settings["buddy_folders"]`,
+- The CLI gets only `--tools Read,Glob,Grep` (no `--add-dir`: it reads nothing beyond `DATA_DIR/buddy`),
   `--strict-mcp-config`, `--permission-prompts none`, and the persona from `PERSONA`. Keep it read-only.
-- Replies end in `[[topic: ...]]`, `[[source: ...]]`, `[[verdict: ...]]`, `[[interest: ...]]` tags that
-  `split_tags` reads and strips (it also strips Markdown and emoji, which Tk shows badly).
-- Academic content (questions, feedback, explanations) is always English; casual chat follows `ui_lang`.
-  Questions target slide topics from the mastery checklist: course on screen, else mostly the nearest exam
-  (an open goal whose title contains the course code), shaky and not-yet-covered topics first.
-- Exam scope: `mastery_files.exam` per deck (toggled in the checklist); questions and readiness use only the
-  exam's decks. Past exams (PDFs named midterm/exam/sample... in a course folder) are extracted to
-  `DATA_DIR/buddy/exams/` (`mastery.past_exams`, duplicates dropped): topic questions grep up to two of them for
-  style, and the chat's "Past exam" button asks real problems from them and grades them.
-- Exam notes: what an instructor announced about the next exam (format, question types) goes in
-  `DATA_DIR/buddy/exam_notes/<course code>.txt` (e.g. `CSE 307.txt`, local only); `exam_style` adds it to every
-  topic question and exercise prompt for that course.
+- It only chats. It used to quiz the owner from their lecture slides (a mastery checklist, past exams, coding
+  exercises) and run a LeetCode plan; the owner had all of that removed on 2026-11-08 because it didn't work
+  well for them. Don't bring it back unasked.
+- Unprompted messages: a good morning with deadline countdowns from open goals, an evening nudge after 21:00
+  if under 30 min of study, and once a day after 14:00 something new from `buddy_interests` (a reply's
+  `[[interest: ...]]` tag, read by `split_tags`, which also strips Markdown and emoji that Tk shows badly).
+- Academic content is always English; casual chat follows `ui_lang`.
 - The chat draws each reply as a card (`ChatWindow.buddy_card`, CustomTkinter widgets embedded in a read-only
-  `tk.Text` so it scrolls like a page): verdict and slides chips on top, a line ending in "?" as the bold
-  question, 4-space lines as a code block, `A) ...` lines as option rows (click or Alt+letter starts the answer;
-  picked/graded colours), the student's messages as right-aligned bubbles. Persona and a per-question
-  `buddy_format` reminder ask Claude for that layout. CTk font sizes are pixels at 96 dpi: use `cfont`.
-  Below the transcript sit one-click replies (hint, explain, skip) and Ctrl+H/E/N/O shortcuts.
-- Questions and explanations about slides open the deck at that slide (`mastery.open_slides`: PDFs in Edge with
-  `#page=N`), from the topic's slide range or a `[[source]]` + `[[slides: N-M]]` tag; while the chat is closed
-  this waits until it opens, and the same deck page isn't opened twice in a row.
-- Every real call spends the owner's quota and takes 7-30 s. Test scheduling and book-keeping with
-  a fake `bridge.ask` that queues a canned reply, and make real calls only for a final check.
+  `tk.Text` so it scrolls like a page): a line ending in "?" in bold, 4-space lines as a code block, the
+  student's messages as right-aligned bubbles. CTk font sizes are pixels at 96 dpi: use `cfont`.
+- Every real call spends the owner's quota and takes 7-30 s. Test with a fake `bridge.ask` that queues a
+  canned reply, and make real calls only for a final check.
 
 ## Data
 
 - `settings.json` and `vocab.db` sit next to the script (`%APPDATA%\Word Popper` for the packaged exe).
   Set `WORD_POPPER_HOME` to point them somewhere else; every test does this.
 - `vocab.db` holds every table: `words`, `library_sessions`, `todos`, `goals`, `journal`.
-  Study time adds `focus_activity` and `focus_rules`; the buddy adds `buddy_messages`, `buddy_questions`,
-  `buddy_interests`, `buddy_sessions`, `mastery_files`, `mastery_topics` (and `buddy_questions.topic_id`). 泡泡's bond adds `bond_points`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
+  Study time adds `focus_activity` and `focus_rules`; the buddy adds `buddy_messages`,
+  `buddy_interests`, `buddy_sessions`. 泡泡's bond adds `bond_points`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
 - Schema changes go in the store's constructor as `CREATE TABLE IF NOT EXISTS` plus `ALTER TABLE ...
   ADD COLUMN` guarded by `PRAGMA table_info`. The owner's real data must upgrade in place. Never drop
   or rewrite their tables.

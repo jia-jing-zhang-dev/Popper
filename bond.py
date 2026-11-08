@@ -1,18 +1,17 @@
 """泡泡's bond: studying brings you closer to 泡泡, who grows a little and unlocks things to wear.
 
 How it is meant to motivate (self-determination theory and the research on rewards and learning):
-- Points come from effortful learning: answering the buddy's questions, mastering slide topics, solving
-  LeetCode, reviewing words, finishing tasks. Time on its own earns little and is capped per day, so the bond
-  says "you learned" rather than "you sat there" (rewards tied to competence keep, not crowd out, interest).
-- A wrong answer still earns points: retrieval practice helps even when you miss, and trying is what counts.
+- Points come from effortful learning: reviewing words (a forgotten word still earns: retrieval practice
+  helps even when you miss), finishing tasks and goals, library visits. Time on its own earns little and is
+  capped per day, so the bond says "you did the work" rather than "you sat there" (rewards tied to
+  competence keep, not crowd out, interest).
 - The bond never goes down and there is no streak to lose. Loss-framed streaks make a missed day feel like
   failure; a rest day here costs nothing.
 - Unlocks are about 泡泡 (a nickname, things it wears, a little growth), which is about relatedness, and they
   are never required for anything.
 
-Points are worked out from what the other features already store (graded questions, mastered topics,
-LeetCode attempts, finished tasks and goals, library visits, study time), so history before this feature
-counts too. Word reviews have no log of their own, so `Vocab.grade` calls `award` directly.
+Points are worked out from what the other features already store (finished tasks and goals, library
+visits, study time), so history before this feature counts too. Word reviews have no log of their own, so `Vocab.grade` calls `award` directly.
 """
 
 import datetime as dt
@@ -30,18 +29,15 @@ from library import ACCENT, BG, FG, FG_DIM, GOOD, PANEL
 GOLD = "#ffd166"
 HEART = "#ff8fab"
 
-QUESTION_POINTS = {"correct": 10, "partial": 6, "wrong": 3}
-TOPIC_POINTS = 15        # a slide topic reaches "understood"
-LEETCODE_POINTS = {"clean": 20, "hint": 12, "solution": 6}
 TASK_POINTS = 5
 GOAL_POINTS = 30
 LIBRARY_POINTS = 5       # a library visit of at least LIBRARY_MIN
 LIBRARY_MIN = 15 * 60
 WORD_POINTS = {True: 2, False: 1}
-FOCUS_SECONDS_PER_POINT = 10 * 60   # an hour of study = 6, about one answered question
+FOCUS_SECONDS_PER_POINT = 10 * 60   # an hour of study = 6, about one finished task
 DAILY_CAP = {"word": 30, "focus": 30}   # time and quick flash cards can't outweigh real practice
 
-SOURCES = ("question", "topic", "leetcode", "word", "task", "goal", "library", "focus")
+SOURCES = ("word", "task", "goal", "library", "focus")
 
 # Something to wear, and the level that unlocks it. The nickname unlocks at NICKNAME_LEVEL.
 ACCESSORIES = [("sprout", 2), ("bow", 4), ("cap", 6), ("star", 9), ("crown", 12)]
@@ -114,7 +110,7 @@ class BondStore:
     def __init__(self, db):
         self.db = db
         db.execute("""CREATE TABLE IF NOT EXISTS bond_points (
-                          source TEXT NOT NULL,   -- question / topic / leetcode / word / task / goal / library / focus
+                          source TEXT NOT NULL,   -- word / task / goal / library / focus
                           ref    TEXT NOT NULL,   -- what earned it (row id, or the day for study time)
                           ts     REAL NOT NULL,
                           points INTEGER NOT NULL,
@@ -131,18 +127,10 @@ class BondStore:
         except sqlite3.OperationalError:  # that feature's table doesn't exist yet
             pass
 
-    def sync(self, focus_log=None, known=0.85, now=None):
+    def sync(self, focus_log=None, now=None):
         """Pick up everything earned since last time. Returns the points added."""
         now = now or time.time()
         before = self.total()
-        q = QUESTION_POINTS
-        self._copy("SELECT 'question', id, ts, CASE verdict WHEN 'correct' THEN ? WHEN 'partial' THEN ? ELSE ? END "
-                   "FROM buddy_questions WHERE verdict IN ('correct', 'partial', 'wrong')",
-                   (q["correct"], q["partial"], q["wrong"]))
-        self._copy("SELECT 'topic', id, COALESCE(last, ?), ? FROM mastery_topics WHERE p >= ?", (now, TOPIC_POINTS, known))
-        lc = LEETCODE_POINTS
-        self._copy("SELECT 'leetcode', id, ts, CASE rating WHEN 'clean' THEN ? WHEN 'hint' THEN ? ELSE ? END "
-                   "FROM leetcode_attempts", (lc["clean"], lc["hint"], lc["solution"]))
         self._copy("SELECT 'task', id, done_at, ? FROM todos WHERE done=1 AND done_at IS NOT NULL", (TASK_POINTS,))
         self._copy("SELECT 'goal', id, done_at, ? FROM goals WHERE done=1 AND done_at IS NOT NULL", (GOAL_POINTS,))
         self._copy("SELECT 'library', id, \"end\", ? FROM library_sessions WHERE \"end\" - start >= ?",

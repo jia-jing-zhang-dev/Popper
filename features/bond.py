@@ -1,6 +1,6 @@
 """泡泡's bond: studying earns closeness with 泡泡, which levels up, grows and unlocks things to wear (see bond.py)."""
 
-from bond import (NICKNAME_LEVEL, QUESTION_POINTS, SOURCES, BondStore, BondWindow, LevelUp, growth, level_of,
+from bond import (NICKNAME_LEVEL, SOURCES, BondStore, BondWindow, LevelUp, growth, level_of,
                   title_key, unlocked)
 from i18n import t
 from journal import Line, Section
@@ -57,9 +57,8 @@ class BondFeature(Feature):
     # ---------- picking up points
 
     def sync(self):
-        import mastery
         focus = self.app.feature("focus")
-        gained = self.store.sync(getattr(focus, "log", None) if focus.on else None, known=mastery.KNOWN)
+        gained = self.store.sync(getattr(focus, "log", None) if focus.on else None)
         level = self.level()
         s = self.app.settings
         first = "bond_seen_level" not in s
@@ -112,7 +111,3 @@ class BondFeature(Feature):
             return None
         lines = [Line(t(f"bond_src_{src}"), right=f"+{got[src]} ♥") for src in SOURCES if got.get(src)]
         return Section(t("j_bond"), t("j_bond_sum", n=sum(got.values())), lines)
-
-    def points_note(self, verdict):
-        """What a graded answer earned, for the chat's verdict line."""
-        return f"+{QUESTION_POINTS[verdict]} ♥" if self.on else ""
