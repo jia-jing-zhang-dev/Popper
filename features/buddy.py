@@ -135,6 +135,8 @@ class BuddyFeature(Feature):
                     lines.append(t("buddy_ctx_goal", title=g["title"], days=days, date=g["deadline"]))
         if self.tools:
             lines.append(t("buddy_ctx_tools", tools=exercise.describe(self.tools)))
+        if self.app.feature("bond").on:
+            lines.append(self.app.feature("bond").buddy_context())
         for course, _ in self.course_list():
             sm = self.mastery.summary(course)
             if sm["total"]:
@@ -189,6 +191,8 @@ class BuddyFeature(Feature):
         verdict = tags.get("verdict", "").lower()
         before = self.mastery.topic(topic_id) if topic_id and verdict else None
         self.on_tags(text, tags, kind)
+        if verdict in ("correct", "partial", "wrong") and self.app.feature("bond").on:
+            self.app.root.after(500, self.app.feature("bond").sync)
         if verdict in ("correct", "partial", "wrong"):
             text = self.badge(verdict, before) + "\n" + text
         if code:
@@ -354,6 +358,9 @@ class BuddyFeature(Feature):
         if after:
             line += "  ·  " + t("mastery_move", topic=after["topic"], before=t("status_" + status(before)),
                                 after=t("status_" + status(after)))
+        bond = self.app.feature("bond")
+        if bond.on:  # what the answer earned with 泡泡; a wrong answer still counts
+            line += "  ·  " + bond.points_note(verdict)
         return line
 
     def current_context(self):

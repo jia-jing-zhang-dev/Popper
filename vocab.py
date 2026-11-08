@@ -101,6 +101,8 @@ class Vocab:
             level, due = 0, now + FORGOT_DELAY
         self.db.execute("UPDATE words SET level=?, due=? WHERE word=?", (level, due, word))
         self.db.commit()
+        from bond import WORD_POINTS, award  # word reviews have no log of their own; 泡泡's bond counts them here
+        award(self.db, "word", f"{word}@{now:.0f}", WORD_POINTS[bool(known)], now)
 
     def search(self, text=""):
         like = f"%{text}%"

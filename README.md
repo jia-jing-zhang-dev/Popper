@@ -50,6 +50,12 @@ screenshot OCR, settings, and spaced-repetition review.
   evenings a nudge if you barely studied, and once a day it shares something new just beyond your
   courses, picked from what you've been curious about. Quiet 23:00-08:00 and capped at 20
   questions a day. Course text, window titles and your messages go to Claude. Off by default.
+- **泡泡's bond.** Studying brings you closer to 泡泡. Answering its questions (a wrong answer
+  still counts), mastering slide topics, LeetCode, word review, finished tasks and goals, library visits and
+  study time (capped per day) earn ♥. Levels unlock a nickname 泡泡 calls you and things it wears (sprout,
+  bow, grad cap, star clip, crown), and the desktop pet grows a little. The bond never goes down and there's
+  no streak to lose, so rest days are fine. Points tied to practice rather than time, and no loss-framed
+  streaks, follow the research on rewards and motivation (self-determination theory).
 - **Word list and review.** Every lookup goes into a local SQLite word list. Review uses
   flash cards with growing intervals (1 → 2 → 4 → 7 → 15 → 30 → 60 days). Search, delete and
   export to CSV (opens in Excel, and imports into Anki).

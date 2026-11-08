@@ -37,13 +37,18 @@ FRAME_MS = 60
 WANDER_MS = (3 * 60_000, 8 * 60_000)
 
 
-def pet_image(frame, size, mark=None):
+def pet_image(frame, size, mark=None, hat=None):
     """One frame on the see-through colour. Only nearly opaque pixels are kept: soft edges and the
-    painted shadow would blend with the see-through colour into a dark fringe."""
+    painted shadow would blend with the see-through colour into a dark fringe. `hat` is what it wears
+    (bond.py); then the pet is drawn a little smaller to leave room on top."""
     rgba = Image.open(os.path.join(ASSETS, f"frame_{frame:02d}.png")).convert("RGBA")
-    rgba.thumbnail((size, size), Image.LANCZOS)
+    inner = round(size * 0.80) if hat else size
+    rgba.thumbnail((inner, inner), Image.LANCZOS)
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     canvas.alpha_composite(rgba, ((size - rgba.width) // 2, size - rgba.height))
+    if hat:
+        from bond import wear
+        wear(canvas, hat)
     if mark:
         d = ImageDraw.Draw(canvas)
         font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", max(12, size // 4))
@@ -69,6 +74,8 @@ class PetFeature(Feature):
 
     def sync_loop(self):
         self.sync()
+        if self.win and self.win.style != self.win.wanted_style():
+            self.win.restyle()
         self.app.root.after(1000, self.sync_loop)
 
     def sync(self):
@@ -82,7 +89,8 @@ class PetFeature(Feature):
 class PetWindow:
     def __init__(self, app):
         self.app = app
-        self.size = round(84 * app.scale)
+        self.style = self.wanted_style()
+        self.size = self.pet_size()
         self.frame = None
         self.images = {}
         self.mood = "happy"
@@ -130,6 +138,27 @@ class PetWindow:
 
     # ---------- looks
 
+    def wanted_style(self):
+        """(accessory, size factor) from 泡泡's bond: it grows a little and wears what it unlocked."""
+        try:
+            return self.app.feature("bond").pet_style()
+        except StopIteration:
+            return None, 1.0
+
+    def pet_size(self):
+        return round(84 * self.app.scale * self.style[1] / (0.80 if self.style[0] else 1))
+
+    def restyle(self):
+        """Redraw with a new accessory or size, keeping the feet where they were."""
+        bottom = self.y + self.size
+        self.style = self.wanted_style()
+        self.size = self.pet_size()
+        self.y = bottom - self.size
+        self.images, self.frame = {}, None
+        self.clamp()
+        self.show_frame()
+        self.app.place_window()
+
     def set_mood(self, mood):
         self.mood = mood
         self.show_frame()
@@ -145,7 +174,7 @@ class PetWindow:
             return
         self.frame = (frame, mark)
         if self.frame not in self.images:
-            self.images[self.frame] = pet_image(frame, self.size, mark)
+            self.images[self.frame] = pet_image(frame, self.size, mark, self.style[0])
         self.label.configure(image=self.images[self.frame])
 
     def clamp(self):

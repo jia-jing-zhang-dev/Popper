@@ -72,6 +72,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `leetcode.py`, `features/leetcode.py` | LeetCode plan: NeetCode 150 Easy+Medium in pattern order (data from leetcode-py, Apache-2.0), `LeetCodeStore` (`leetcode_problems`, `leetcode_attempts`: timed attempts rated clean/hint/solution, re-solve dates), `PlanWindow`; starting a problem opens its leetcode.com page, a leetcode-py folder in `DATA_DIR/leetcode/` in VS Code (Ctrl+Shift+B runs its pytest suite with Popper's Python) and the matching CSE 373 deck |
 | `features/usage.py` | Claude plan usage badge: parses `claude -p /usage` (local, no quota) every 5 min; `app.set_badge` puts it on the card's top row |
 | `features/pet.py` | Desktop pet: transparent window (`-transparentcolor`) showing frames from `assets/pet/` (FluffyBlob, CC0; `MOODS` maps moods to frames, `HOP` is the jump); bobs, hops, wanders; sets `app.anchor` so the card sits above it and `app.card_drag` so dragging the card moves it |
+| `bond.py`, `features/bond.py` | 泡泡's bond: `BondStore` (`bond_points`, one row per `(source, ref)`) collects ♥ from other features' tables on each `sync` (graded buddy questions, mastered topics, LeetCode attempts, done tasks/goals, library visits, study time per day) plus word reviews via `award` in `Vocab.grade`; daily caps for words and study time; never decreases, no streaks. Levels unlock a nickname (in the buddy's context) and accessories `wear` draws on the pet, which also grows a little (`pet_style`, `PetWindow.restyle`); `LevelUp` card, `BondWindow` |
 | `mascot.py` | The bubble on the card, drawn with PIL per mood (happy, blink, thinking, talking, worried, celebrate, sleepy); `app.mood()` picks it, `app.set_mood(mood, seconds)` shows one for a while |
 | `focus.py` | Study-time detection: samples the foreground window and idle time every 5 s into per-minute buckets keyed by program/site; default rules plus the owner's overrides decide what counts |
 | `journal.py` | Journal store and window; a page is the sections of every feature that's on |
@@ -116,7 +117,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
   Set `WORD_POPPER_HOME` to point them somewhere else; every test does this.
 - `vocab.db` holds every table: `words`, `library_sessions`, `todos`, `goals`, `journal`.
   Study time adds `focus_activity` and `focus_rules`; the buddy adds `buddy_messages`, `buddy_questions`,
-  `buddy_interests`, `buddy_sessions`, `mastery_files`, `mastery_topics` (and `buddy_questions.topic_id`). All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
+  `buddy_interests`, `buddy_sessions`, `mastery_files`, `mastery_topics` (and `buddy_questions.topic_id`). 泡泡's bond adds `bond_points`. All stores share **one** sqlite connection (`app.vocab.db`). Two connections locked each other.
 - Schema changes go in the store's constructor as `CREATE TABLE IF NOT EXISTS` plus `ALTER TABLE ...
   ADD COLUMN` guarded by `PRAGMA table_info`. The owner's real data must upgrade in place. Never drop
   or rewrite their tables.
