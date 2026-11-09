@@ -257,7 +257,9 @@ class Cat:
         self.label.bind("<B1-Motion>", self.on_motion)
         self.label.bind("<ButtonRelease-1>", self.on_release)
         self.label.bind("<Button-3>", self.app.show_menu)
-        self.sit(random.uniform(2, 5))
+        base = {"sit": 38, "groom": 14, "yawn": 6, "look": 10, "nap": 8, "walk": 24}
+        self.personality = {k: v * random.uniform(0.6, 1.5) for k, v in base.items()}
+        self.sit(random.uniform(2, 5) + index * random.uniform(2, 6))   # and they don't start in step
         self.place()
 
     # ---------- looks
@@ -400,28 +402,43 @@ class Cat:
                 return
         pets = self.pets
         idle = pets.idle()
-        if pets.drowsy() or idle > AWAY_IDLE and random.random() < 0.5:
-            self.do("nap", ["sleep"], 1000, random.uniform(60, 240))
-            return
         unobserved = idle > CALM_IDLE
         roam = 600 if unobserved else 160
         if self.index == 0:
             roam = 260 if unobserved else 60    # the first cat carries the card: stay near where you put it
-        r = random.random()
-        if r < 0.38:
+        sleepy = pets.drowsy() or idle > AWAY_IDLE
+        w = dict(self.personality)
+        if sleepy:
+            w["nap"] *= 8
+        elif not unobserved:
+            w["nap"] *= 0.3
+            w["walk"] *= 0.6
+        # never mirror the other cat: whatever it's doing now is much less likely here
+        other = self.other()
+        if other and other.action:
+            kind = other.action["kind"]
+            for k in w:
+                if k == kind or (k == "walk" and kind == "move"):
+                    w[k] *= 0.08
+        kind = random.choices(list(w), list(w.values()))[0]
+        if kind == "sit":
             self.sit(random.uniform(4, 12))
-        elif r < 0.52:
-            self.do("groom", ["lick1", "lick2"], 420, random.uniform(3, 7))
-        elif r < 0.58:
-            self.do("yawn", ["yawn"], 1000, 1.6)
-        elif r < 0.68:
+        elif kind == "groom":
+            self.do("groom", ["lick1", "lick2"], random.choice((380, 420, 470)), random.uniform(3, 7))
+        elif kind == "yawn":
+            self.do("yawn", ["yawn"], 1000, random.uniform(1.2, 2.0))
+        elif kind == "look":
             self.facing = random.choice((-1, 1))
             self.do("look", ["sit_s"], 1000, random.uniform(3, 7))
-        elif r < 0.76 and unobserved:
-            self.do("nap", ["sleep"], 1000, random.uniform(20, 90))
+        elif kind == "nap":
+            self.do("nap", ["sleep"], 1000, random.uniform(60, 240) if sleepy else random.uniform(20, 90))
         else:
             x = self.home + random.uniform(-roam, roam)
             self.walk_to(x, run=unobserved and random.random() < 0.15)
+
+    def other(self):
+        cats = self.pets.cats
+        return next((c for c in cats if c is not self), None)
 
     def show_mood(self, mood):
         frames = {"thinking": ["think"], "talking": ["talk", "talk2"], "worried": ["worried"],
@@ -561,8 +578,12 @@ class Director:
     def end(self, *cats):
         self.running = None
         self.token += 1
+        first = random.choice(cats)
         for c in cats:
-            c.sit(random.uniform(2, 6))
+            if c is first:
+                c.sit(random.uniform(2, 6))
+            else:
+                c.action = None      # picks something else on the next frame
 
     def meet(self, mover, other, then, gap=0.62, run=False):
         """Walk `mover` up beside `other`, on whichever side it already is."""
@@ -625,13 +646,20 @@ class Director:
         self.begin("cuddle")
         mover, still = (b, a)   # the second cat comes to the first
 
-        def sleep():
+        def settle():
             mover.facing = still.facing = random.choice((-1, 1))
-            for c in (a, b):
-                c.do("together", ["sleep_s"], 1000)
+            still.do("together", ["sleep_s"], 1000)
+            r = random.random()
+            if r < 0.45:
+                mover.do("together", ["sleep_s"], 1000)
+            elif r < 0.75:
+                mover.do("together", ["sit_s"], 1000)                 # keeps watch beside it
+            else:
+                mover.do("together", ["lick1", "lick2"], 450)         # washes while the other sleeps
+                self.later(random.uniform(8, 20) * 1000, lambda: mover.do("together", ["sleep_s"], 1000))
             self.later(int(random.uniform(90, 300) * 1000), lambda: self.end(a, b))
         still.do("together", ["sleep_s"], 1000)
-        self.meet(mover, still, sleep, gap=0.48)
+        self.meet(mover, still, settle, gap=0.48)
 
     def come_over(self):
         p = self.pair()

@@ -333,12 +333,13 @@ class App:
         self.place_window()
 
     def update_status(self):
-        text = self.current["word"] if self.current else t("idle")
+        # idle, the card shows nothing of its own (the cat below it says who it is)
+        parts = [self.current["word"]] if self.current else []
         if not self.settings["listening"]:
-            text += f"  {t('paused')}"
+            parts.append(t("paused"))
         if self.notice:
-            text += f"   ·  {self.notice[0]}"
-        self.word_lbl.configure(text=text)
+            parts.append(self.notice[0])
+        self.word_lbl.configure(text="  ·  ".join(parts))
         self.refresh_mood()
 
     # ---------- the bubble's face

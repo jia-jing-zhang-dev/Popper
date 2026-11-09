@@ -2,7 +2,7 @@
 
 STRINGS = {
     "en": {
-        "idle": "{cat}",
+        "idle": "Desktop Study Cats",
         "paused": "(paused)",
         "reading_screenshot": "Reading screenshot…",
         "translating": "Translating…",
@@ -255,7 +255,7 @@ STRINGS = {
         "j_bond_sum": "+{n} ♥",
     },
     "zh": {
-        "idle": "{cat}",
+        "idle": "桌面学习猫",
         "paused": "(已暂停)",
         "reading_screenshot": "识别截图中…",
         "translating": "翻译中…",
