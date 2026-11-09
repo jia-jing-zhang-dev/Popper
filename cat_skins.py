@@ -56,6 +56,11 @@ class SkinWindow:
             tk.Label(head, text=t("cats_first" if i == 0 else "cats_second"), bg=BG, fg=FG, font=f(12)).pack(side="left")
             if i == 0 or two:
                 self.name_box(head, i)
+            if i == 1 and two:   # hand the card to this cat
+                swap = tk.Label(head, text="\u21c4 " + t("cats_swap", name=self.feature.names()[1]), bg=PANEL, fg=ACCENT,
+                                padx=8, pady=2, cursor="hand2", font=f(9))
+                swap.pack(side="left", padx=(12, 0))
+                swap.bind("<Button-1>", lambda e: (self.feature.swap_cats(), self.refresh()))
             if i == 1:
                 box = tk.Label(head, text=("☑ " if two else "☐ ") + t("cats_two"), bg=BG, fg=ACCENT, cursor="hand2", font=f(10))
                 box.pack(side="left", padx=(12, 0))

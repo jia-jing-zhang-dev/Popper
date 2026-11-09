@@ -334,6 +334,20 @@ class PetFeature(Feature):
         self.update_name()
         self.rebuild()
 
+    def swap_cats(self):
+        """The second cat takes the card (with its name, the bond's accessory and the moods): the two swap
+        places in every per-cat setting."""
+        s = self.app.settings
+        s["pet_skins"] = self.skins()[::-1]
+        names = list(s.get("pet_names") or []) + [None, None]
+        s["pet_names"] = [names[1], names[0]]
+        s["pet_x"], s["pet2_x"] = s.get("pet2_x"), s.get("pet_x")
+        n = self.needs()
+        n["hunger"], n["thirst"] = n["hunger"][::-1], n["thirst"][::-1]
+        self.app.save()
+        self.update_name()
+        self.rebuild()
+
     def set_two(self, on):
         self.app.settings["pet_two"] = bool(on)
         self.app.save()
@@ -1053,12 +1067,22 @@ class Cat:
         if moved:
             self.save()
             self.sit(random.uniform(2, 4))
-        elif self.index == 0:
-            self.hop()
-            self.app.card_clicked()
         else:
-            self.hop()
-            self.pets.director.come_over()   # the other cat goes to say hello
+            self.answer_you()
+            if self.index == 0:          # the card's cat: also replays the word (or opens the waiting message)
+                self.app.card_clicked()
+
+    def answer_you(self):
+        """Clicked: it turns to you, meows and hops. Busy eating, drinking, scratching or lying in the bed,
+        it only perks up."""
+        a = self.action
+        if a and (a.get("elev") or a["kind"] in ("eat", "drink", "scratch", "drag")):
+            self.hop(0.06)
+            return
+        if a and a["kind"] == "together" and self.pets.director:
+            self.pets.director.end(*self.pets.cats)
+        self.hop()
+        self.do("answer", ["talk", "talk2", "sit", "blink", "sit"], 380, 2.0)
 
     def save(self):
         s = self.app.settings
@@ -1102,14 +1126,14 @@ class Director:
             return
         idle = self.pets.idle()
         unobserved = idle > CALM_IDLE
-        self.next_time = now + (random.uniform(25, 70) if unobserved else random.uniform(120, 300))
+        self.next_time = now + (random.uniform(15, 45) if unobserved else random.uniform(50, 120))
         if self.pets.drowsy() or idle > AWAY_IDLE:
             self.cuddle(a, b)
             return
-        if not unobserved and random.random() < 0.6:
-            return   # while you're working they mostly leave each other alone
+        if not unobserved and random.random() < 0.25:
+            return   # while you're working they still meet now and then, but calmly
         ball, yarn = self.pets.toy("ball"), self.pets.toy("yarn")
-        games = {"boop": 4, "groom": 3, "chase": 2 if unobserved else 0, "cuddle": 1,
+        games = {"boop": 4, "groom": 3, "chase": 2 if unobserved else 0, "cuddle": 1 if unobserved else 2,
                  "rub": 3 if self.pets.can_live() else 0,
                  "pingpong": 5 if ball and unobserved else 0, "yarn_race": 4 if yarn and unobserved else 0}
         choice = random.choices(list(games), list(games.values()))[0]
@@ -1308,8 +1332,3 @@ class Director:
         def after():
             self.later(random.uniform(500, 1200), go)
         go()
-
-    def come_over(self):
-        p = self.pair()
-        if p and not self.running and not p[0].busy():
-            self.boop(*p)
