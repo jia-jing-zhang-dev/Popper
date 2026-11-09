@@ -575,6 +575,12 @@ class Director:
         choice = random.choices(["boop", "groom", "chase", "cuddle"], [4, 3, 2 if unobserved else 0, 1])[0]
         getattr(self, choice)(a, b) if choice != "groom" else self.groom(*random.sample((a, b), 2))
 
+    @staticmethod
+    def face_each_other(a, b):
+        """Turn the two cats toward each other (side frames face left; +1 mirrors them to face right)."""
+        a.facing = 1 if b.centre() > a.centre() else -1
+        b.facing = -a.facing
+
     def end(self, *cats):
         self.running = None
         self.token += 1
@@ -598,7 +604,7 @@ class Director:
         mover, still = random.sample((a, b), 2)
 
         def touch():
-            mover.facing = -still.facing
+            self.face_each_other(mover, still)
             mover.do("together", ["sit_s", "boop"], 900, facing=mover.facing)
             still.do("together", ["sit_s", "boop"], 900, facing=still.facing)
             self.later(2700, lambda: self.end(a, b))
@@ -608,7 +614,8 @@ class Director:
         self.begin("groom")
 
         def lick():
-            giver.do("together", ["groom1", "groom2"], 450, facing=-receiver.facing)
+            self.face_each_other(giver, receiver)
+            giver.do("together", ["groom1", "groom2"], 450, facing=giver.facing)
             receiver.do("together", ["groomed"], 1000, facing=receiver.facing)
             self.later(int(random.uniform(4, 8) * 1000), lambda: self.end(giver, receiver))
         self.meet(giver, receiver, lick)
@@ -637,7 +644,7 @@ class Director:
         self.later(600, lambda: self.meet(chaser, runner, lambda: self.touch_after_chase(runner, chaser)))
 
     def touch_after_chase(self, runner, chaser):
-        chaser.facing = -runner.facing
+        self.face_each_other(chaser, runner)
         chaser.do("together", ["sit_s", "boop"], 900, facing=chaser.facing)
         runner.do("together", ["sit_s", "boop"], 900, facing=runner.facing)
         self.later(2700, lambda: self.end(runner, chaser))
@@ -647,19 +654,19 @@ class Director:
         mover, still = (b, a)   # the second cat comes to the first
 
         def settle():
-            mover.facing = still.facing = random.choice((-1, 1))
-            still.do("together", ["sleep_s"], 1000)
+            self.face_each_other(mover, still)        # curled up nose to nose
+            still.do("together", ["sleep_s"], 1000, facing=still.facing)
             r = random.random()
             if r < 0.45:
-                mover.do("together", ["sleep_s"], 1000)
+                mover.do("together", ["sleep_s"], 1000, facing=mover.facing)
             elif r < 0.75:
-                mover.do("together", ["sit_s"], 1000)                 # keeps watch beside it
+                mover.do("together", ["sit_s"], 1000, facing=mover.facing)                 # keeps watch beside it
             else:
                 mover.do("together", ["lick1", "lick2"], 450)         # washes while the other sleeps
-                self.later(random.uniform(8, 20) * 1000, lambda: mover.do("together", ["sleep_s"], 1000))
+                self.later(random.uniform(8, 20) * 1000, lambda: mover.do("together", ["sleep_s"], 1000, facing=mover.facing))
             self.later(int(random.uniform(90, 300) * 1000), lambda: self.end(a, b))
         still.do("together", ["sleep_s"], 1000)
-        self.meet(mover, still, settle, gap=0.48)
+        self.meet(mover, still, settle, gap=0.74)   # facing each other: room for both heads, nose to nose
 
     def come_over(self):
         p = self.pair()
