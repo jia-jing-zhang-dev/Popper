@@ -105,7 +105,7 @@ class PetFeature(Feature):
         self.prop_meta = furniture.load_meta()
         self.items = {}
         self.director = None
-        self.update_name()
+        CAT["name"] = self.names()[0]   # no card refresh yet: other features are still starting
         self.app.root.after(300, self.sync)
         self.app.root.after(1000, self.sync_loop)
 

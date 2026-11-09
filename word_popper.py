@@ -354,7 +354,7 @@ class App:
         if dt_hour() >= 23 or dt_hour() < 7:
             return "sleepy"  # late at night the cat dozes
         buddy = next((f for f in getattr(self, "features", []) if f.id == "buddy"), None)
-        if buddy and buddy.on and buddy.waiting:
+        if buddy and buddy.on and getattr(buddy, "waiting", False):   # it may not have started yet
             return "thinking"
         return "happy"
 
