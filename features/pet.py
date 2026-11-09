@@ -104,6 +104,7 @@ class PetFeature(Feature):
         self.toy_meta = toys.load_meta()
         self.prop_meta = furniture.load_meta()
         self.items = {}
+        self.fronts = {}       # (body type, frame) -> where the frame's frontmost point is
         self.director = None
         CAT["name"] = self.names()[0]   # no card refresh yet: other features are still starting
         self.app.root.after(300, self.sync)
@@ -122,6 +123,24 @@ class PetFeature(Feature):
             full = self.needs()["food"] >= 0.99
             menu.add_command(label=t("menu_feed_full") if full else t("menu_feed"), command=self.feed,
                              state="disabled" if full else "normal")
+        if self.cats and self.can_live():
+            menu.add_command(label=t("menu_furniture_away") if self.items else t("menu_furniture_out"),
+                             command=self.toggle_furniture)
+
+    def toggle_furniture(self):
+        """Put the bowls, post and bed away (the cats just get on without them) or set them out again."""
+        out = not self.items
+        self.app.settings["pet_furniture"] = out
+        self.app.save()
+        if out:
+            self.build_items()
+        else:
+            for c in self.cats:   # nobody stays lying in a bed that's gone
+                if c.action and c.action.get("elev"):
+                    c.action = None
+            for item in self.items.values():
+                item.destroy()
+            self.items = {}
 
     def can_live(self):
         """The renders with eating, drinking, scratching... and the bowls, post and bed are there."""
@@ -331,7 +350,7 @@ class PetFeature(Feature):
             for kind in self.app.settings.get("pet_toys") or []:
                 if kind in toys.KINDS:
                     self.drop_toy(kind, drop=False, x=self.cats[0].centre() + random.uniform(-260, 260) * self.app.scale)
-        if self.can_live():
+        if self.can_live() and self.app.settings.get("pet_furniture", True):
             self.build_items()
         self.last_tick = time.time()
         self.last_save = time.time()
@@ -522,7 +541,9 @@ class Cat:
 
     def walk_to(self, x, then=None, run=False):
         sw = self.top.winfo_screenwidth()
-        x = max(0, min(x, sw - self.w))
+        # the window has empty space around the cat: it may hang off the screen's edge as long as the cat doesn't,
+        # or a cat couldn't reach a scratching post standing near the edge
+        x = max(-self.w * 0.3, min(x, sw - self.w * 0.7))
         speed = (150 if run else 48) * self.app.scale * (0.8 if skin_type(self.skin) == "kitten" else 1.0)
         self.do("move", RUN if run else WALK, 80 if run else 120, target=x, speed=speed, then=then)
 
@@ -686,10 +707,12 @@ class Cat:
         """Walk to the bowl (from `side`: -1 left, +1 right) and eat; the meal comes out of the bowl."""
         side = side or self.side_of(bowl)
         facing = -side
-        nose = bowl.cx() + side * bowl.w * 0.14
-        x = self.x_for_nose(nose, facing, "eat1")
+        # the nose goes into this cat's half of the bowl (two cats can eat from either side)
+        x = self.x_for_front(bowl.cx() + side * bowl.w * 0.12, facing, "eat1")
 
         def eat():
+            if bowl not in self.pets.items.values():   # put away while it was on its way
+                return self.sit(random.uniform(2, 4))
             if self.pets.needs()["food"] <= 0.01:
                 return self.beg(bowl)
             self.do("eat", ["eat1", "eat2"], random.choice((380, 430, 480)), random.uniform(6, 11), facing=facing, then=done)
@@ -698,7 +721,8 @@ class Cat:
             n = self.pets.needs()
             n["food"] = max(0.0, n["food"] - MEAL)
             n["hunger"][min(self.index, len(n["hunger"]) - 1)] = 0.0
-            bowl.show("foodfull" if n["food"] > 0.01 else "foodempty")
+            if bowl in self.pets.items.values():
+                bowl.show("foodfull" if n["food"] > 0.01 else "foodempty")
             self.app.save()
             self.do("groom", ["lick1", "lick2"], 420, random.uniform(2, 4))   # a wash after a meal
         self.go_to(x, eat, run=True)
@@ -717,9 +741,11 @@ class Cat:
     def go_drink(self, bowl):
         side = self.side_of(bowl)
         facing = -side
-        x = self.x_for_nose(bowl.cx() + side * bowl.w * 0.10, facing, "drink1")
+        x = self.x_for_front(bowl.cx() + side * bowl.w * 0.10, facing, "drink1")
 
         def drink():
+            if bowl not in self.pets.items.values():
+                return self.sit(random.uniform(2, 4))
             self.do("drink", ["drink1", "drink2"], 340, random.uniform(3, 6), facing=facing, then=done)
 
         def done():
@@ -733,9 +759,12 @@ class Cat:
     def go_scratch(self, post):
         side = self.side_of(post)
         facing = -side
-        x = self.x_for_nose(post.cx() + side * post.w * 0.22, facing, "scratch1")
+        # paw tips on the sisal: the pole is about a third of the post picture's width
+        x = self.x_for_front(post.cx() + side * post.w * 0.11, facing, "scratch1")
 
         def scratch():
+            if post not in self.pets.items.values():
+                return self.sit(random.uniform(2, 4))
             self.do("scratch", ["scratch1", "scratch2"], 300, random.uniform(3, 5.5), facing=facing)
         self.go_to(x, scratch)
 
@@ -744,6 +773,8 @@ class Cat:
         x = bed.cx() + offset - self.w / 2
 
         def lie():
+            if bed not in self.pets.items.values():
+                return self.do(kind, ["sleep"], 1000, seconds, then=then)   # no bed after all: on the floor
             self.facing = random.choice((-1, 1)) if not offset else (1 if offset < 0 else -1)
             self.do(kind, ["sleep_s"], 1000, seconds, facing=self.facing, elev=bed.cushion(), then=then)
             self.place()
@@ -756,6 +787,21 @@ class Cat:
         """Screen x of the cat's nose in a side frame, for the way it faces now."""
         hx = self.anchors[frame]["head"][0] * self.scale
         return self.x + (self.w - hx if self.facing > 0 else hx)
+
+    def front(self, frame):
+        """How far into the frame (stored px from the left) its frontmost point is: the nose when eating or
+        drinking, the paw tips when scratching. Side frames face left, so it's the left-most opaque column."""
+        key = (skin_type(self.skin), frame)
+        cache = self.pets.fronts
+        if key not in cache:
+            im = Image.open(os.path.join(ASSETS, self.skin, frame + ".webp")).getchannel("A")
+            cache[key] = im.point(lambda a: 255 if a > 110 else 0).getbbox()[0]
+        return cache[key]
+
+    def x_for_front(self, point, facing, frame):
+        """Where the window goes so the frame's frontmost point is at screen x `point`."""
+        fx = self.front(frame) * self.scale
+        return point - (self.w - fx if facing > 0 else fx)
 
     def x_for_nose(self, nose, facing, frame="crouch"):
         """Where the window goes so the nose is at `nose` when facing that way."""

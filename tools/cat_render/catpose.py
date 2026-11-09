@@ -358,23 +358,26 @@ def roll(stage):
 # ---------- daily life: eating, drinking, scratching, arching, tail swish, face rubbing
 
 def eat(stage):
-    """Standing over a bowl, head down in it; stage 2 chewing (jaw open)."""
-    reset()
-    for s in ("l", "r"):
-        rot(f"{s}_hum", X, 12); rot(f"{s}_elb", X, -22); rot(f"{s}_wri", X, 12)
-    rot("s4", X, 10)
-    rot("neckb", X, 48); rot("neck", X, 12); rot("head", X, 18 if stage == 1 else 12)
-    rot("t1", X, 10)
-    for i in range(2, 7):
-        rot(f"t{i}", X, -6)
+    """Crouched at the bowl, front legs folded, neck stretched down so the mouth is in the bowl;
+    stage 2 chewing (jaw open)."""
+    _bowl_crouch(EAT_NECK)
+    rot("head", X, 8 if stage == 1 else 2)
 
 def drink(stage):
-    """Crouched by the water bowl, head low and forward, lapping (tongue out on stage 2)."""
+    """Crouched by the water bowl, mouth down at the water, lapping (tongue out on stage 2)."""
+    _bowl_crouch(DRINK_NECK)
+    rot("head", X, 12)
+
+EAT_NECK = (74, 32)     # neck base, neck: how far the head goes down into the bowl
+DRINK_NECK = (76, 32)
+
+def _bowl_crouch(neck):
     reset()
     for s in ("l", "r"):
-        rot(f"{s}_hum", X, 28); rot(f"{s}_elb", X, -55); rot(f"{s}_wri", X, 30)
+        rot(f"{s}_hum", X, 30); rot(f"{s}_elb", X, -62); rot(f"{s}_wri", X, 34)
         rot(f"{s}_fem", X, -35); rot(f"{s}_knee", X, 85); rot(f"{s}_ank", X, -50)
-    rot("neckb", X, 30); rot("head", X, 20)
+    rot("s4", X, 8)
+    rot("neckb", X, neck[0]); rot("neck", X, neck[1])
     rot("t1", X, -15)
     for i in range(2, 7):
         rot(f"t{i}", Z, -12)

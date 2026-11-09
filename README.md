@@ -38,7 +38,7 @@ screenshot OCR, settings, and spaced-repetition review.
   happy. Right-click → **Toss in the yarn ball / bell ball** and a toy drops onto the desktop: the cats stalk it,
   pounce, swat it about, bat the ball back and forth between them or race for the yarn. Drag a toy to tease them
   (let go to throw it). They have a food bowl, a water bowl, a scratching post and a bed on the desktop floor
-  (drag them where you like): they drink when thirsty, scratch the post, nap in the bed (cuddled up together
+  (drag them where you like, or right-click → **Put the bowls, post and bed away**): they drink when thirsty, scratch the post, nap in the bed (cuddled up together
   too), swish their tails, arch when something whizzes past and rub cheeks with each other. They get hungry over
   a few hours; right-click → **Feed the cats** fills the bowl and they come and eat from either side. With an
   empty bowl, a hungry cat sits by it and meows at you. Right-click → **Cats…** names each cat and picks its coat

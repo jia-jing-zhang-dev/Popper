@@ -14,7 +14,9 @@ ONLY = [a for a in argv[1:] if not a.startswith("--")]
 PICK = next((a.split("=", 1)[1].split(",") for a in argv if a.startswith("--frames=")), None)
 
 ns = {}
-exec(bpy.data.texts["catpose.py"].as_string(), ns)
+HERE = os.path.dirname(os.path.abspath(__file__))
+# the repo's catpose.py wins over the copy saved in the .blend, so pose changes don't need Blender's UI
+exec(open(os.path.join(HERE, "catpose.py"), encoding="utf-8").read(), ns)
 fur = {}
 exec(bpy.data.texts["catfur.py"].as_string(), fur)
 COATS = eval(bpy.data.texts["coats.py"].as_string())
