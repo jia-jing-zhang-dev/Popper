@@ -148,11 +148,14 @@ def face(P):
                 rot(f"{s}_ear", Y, sx * 35 * -ears)
 
 
-BASE_YAW = -90.0   # the model's own orientation fix; poses add their yaw on top
+BASE_YAW = -90.0
+PLAY = {"crouch": lambda: crouch(), "pounce": lambda: pounce(), "bat1": lambda: swat(1), "bat2": lambda: swat(2),
+        "stretch": lambda: stretch(), "roll1": lambda: roll(1), "roll2": lambda: roll(2)}   # the model's own orientation fix; poses add their yaw on top
 
 def set_yaw(deg):
     root = bpy.data.objects["Real_root"]
-    root.rotation_euler = (0, 0, math.radians(BASE_YAW + deg))
+    root.rotation_euler.y = 0
+    root.rotation_euler.z = math.radians(BASE_YAW + deg)     # keeps a roll (x) if a pose set one
     bpy.context.view_layer.update()
 
 def paw_up(side="l", up=1.0, lick=0.0):
@@ -206,10 +209,24 @@ def loaf():
     ground()
 
 def pose(name, P=None):
-    """Every frame the app uses, by name."""
+    """Every frame Popper uses, by name."""
     P = dict(P or {})
+    bpy.data.objects["Real_root"].rotation_euler.x = 0
     set_yaw(0)          # pose in the model's own frame; the turn to the side comes last
     side = name.endswith("_s") or name.startswith(("walk", "run", "boop", "groom"))
+    if name in PLAY:
+        root = bpy.data.objects["Real_root"]
+        root.rotation_euler.x = 0
+        PLAY[name]()
+        if name in ("crouch", "bat1", "bat2"):
+            face({"ears": 1, "wide": 1})
+        elif name == "stretch":
+            face({"eyes": 0.6, "jaw": 0.2})
+        elif name.startswith("roll"):
+            face({"eyes": 0.5, "jaw": 0.3})
+        set_yaw(0 if name.startswith("roll") else -90)
+        ground()
+        return not name.startswith("roll")
     if name.startswith("walk") or name.startswith("run"):
         gait = "run" if name.startswith("run") else "walk"
         n = 4 if gait == "run" else 6
@@ -262,3 +279,58 @@ def head_size(name):
     k = TYPES[name]["head"]
     pb.scale = (k, k, k)
     bpy.context.view_layer.update()
+
+
+# ---------- play: stalking, pouncing, swatting, stretching, rolling
+
+def crouch(ears=1.0):
+    """Low to the ground, hind legs bunched: stalking a toy."""
+    reset()
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, 35); rot(f"{s}_elb", X, -70); rot(f"{s}_wri", X, 35)
+        rot(f"{s}_fem", X, -30); rot(f"{s}_knee", X, 75); rot(f"{s}_ank", X, -45)
+    rot("s1", X, 6)
+    rot("neckb", X, -4); rot("head", X, 8)
+    rot("t1", X, -18)
+    for i in range(2, 7):
+        rot(f"t{i}", X, -3)
+
+def pounce():
+    """Mid-leap: front legs reaching, hind legs pushing off."""
+    reset()
+    rot("s1", X, -12)
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, -60); rot(f"{s}_elb", X, 25); rot(f"{s}_wri", X, 20)
+        rot(f"{s}_fem", X, 45); rot(f"{s}_knee", X, -25); rot(f"{s}_ank", X, 30)
+    rot("neckb", X, 4)
+    rot("t1", X, 5)
+
+def swat(stage):
+    """Crouched, one front paw out at a toy: stage 1 lifting, stage 2 striking low and forward."""
+    crouch()
+    if stage == 1:     # paw drawn up high, ready
+        rot("l_hum", X, -115); rot("l_elb", X, 120); rot("l_wri", X, -20)
+    else:              # striking forward and down
+        rot("l_hum", X, -100); rot("l_elb", X, 45); rot("l_wri", X, -25)
+
+def stretch():
+    """The play bow: front legs straight out along the ground, chest down, rear up."""
+    reset()
+    rot("s1", X, 18)
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, -70); rot(f"{s}_elb", X, 10); rot(f"{s}_wri", X, 25)
+    rot("neckb", X, -22); rot("head", X, -8)
+    rot("t1", X, 40)
+    for i in range(2, 7):
+        rot(f"t{i}", X, 6)
+
+def roll(stage):
+    """Rolling about: on its side (1), on its back with paws up (2)."""
+    loaf()
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, -60); rot(f"{s}_elb", X, 70)
+        rot(f"{s}_fem", X, 30); rot(f"{s}_knee", X, -50)
+    root = bpy.data.objects["Real_root"]
+    root.rotation_euler.x = math.radians(80 if stage == 1 else 150)
+    bpy.context.view_layer.update()
+    ground()

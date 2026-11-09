@@ -22,6 +22,7 @@ import tkinter as tk
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageTk
 
+import toys
 from focus import idle_seconds
 from i18n import CAT, t
 
@@ -43,8 +44,10 @@ SIT_HEIGHT = 92           # an adult sitting cat is about this tall on screen, b
 CALM_IDLE = 45            # seconds without input before the cats feel unobserved
 AWAY_IDLE = 4 * 60        # ... and before they settle down for a long nap together
 HAT_WIDTH = 3.2         # an accessory's width, in ear-base spacings
+TOY_SIZE = 1.6         # toys drawn this much bigger than true scale, so they read next to the cats
 MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
 
+PLAY_FRAMES = ("crouch", "pounce", "bat1", "bat2", "stretch", "roll1", "roll2")
 WALK = [f"walk{i}" for i in range(6)]
 RUN = [f"run{i}" for i in range(4)]
 
@@ -91,7 +94,9 @@ class PetFeature(Feature):
 
     def start(self):
         self.cats = []
+        self.toys = []
         self.meta = load_meta()
+        self.toy_meta = toys.load_meta()
         self.director = None
         self.update_name()
         self.app.root.after(300, self.sync)
@@ -99,6 +104,54 @@ class PetFeature(Feature):
 
     def menu_items(self, menu):
         menu.add_command(label=t("menu_cats"), command=self.open_skins)
+        if self.cats and self.toy_meta and self.can_play():
+            have = {toy.kind for toy in self.toys}
+            for kind in toys.KINDS:
+                if kind not in have:
+                    menu.add_command(label=t(f"menu_toy_{kind}"), command=lambda k=kind: self.drop_toy(k))
+            if self.toys:
+                menu.add_command(label=t("menu_toys_away"), command=self.put_toys_away)
+
+    def can_play(self):
+        """The renders with the play poses are there (older asset sets don't have them)."""
+        return all(f in self.meta["anchors"]["adult"] for f in PLAY_FRAMES)
+
+    # ---------- toys
+
+    def base_scale(self):
+        """Screen pixels per stored pixel for an adult cat (toys use it too, so they're cat-sized)."""
+        ch = self.meta["canvas"][1]
+        sit = self.meta["anchors"]["adult"]["sit"]
+        adult_sit_h = ch - sit["head"][1] + abs(sit["ear_l"][0] - sit["ear_r"][0]) * 0.6
+        return SIT_HEIGHT * self.app.scale / max(adult_sit_h, 1)
+
+    def floor_gap(self):
+        """Empty pixels under a standing cat's paws in the frames (screen px): toys sit on the paws' floor."""
+        if not hasattr(self, "_floor_gap"):
+            im = Image.open(os.path.join(ASSETS, "A_adult", "sit.webp"))
+            self._floor_gap = im.height - im.getchannel("A").point(lambda a: 255 if a > 110 else 0).getbbox()[3]
+        return self._floor_gap * self.base_scale()
+
+    def drop_toy(self, kind, drop=True, x=None):
+        if not self.cats or any(t_.kind == kind for t_ in self.toys):
+            return
+        c = self.cats[0]
+        x = x if x is not None else c.centre() + random.choice((-1, 1)) * random.uniform(80, 220) * self.app.scale
+        toy = toys.Toy(self, kind, x, c.ground - self.floor_gap(), self.base_scale() * TOY_SIZE, drop=drop)
+        toy.kick(random.uniform(-120, 120) * self.app.scale)
+        self.toys.append(toy)
+        self.app.settings["pet_toys"] = [t_.kind for t_ in self.toys]
+        self.app.save()
+
+    def put_toys_away(self):
+        for toy in self.toys:
+            toy.top.destroy()
+        self.toys = []
+        self.app.settings["pet_toys"] = []
+        self.app.save()
+
+    def toy(self, kind=None):
+        return next((t_ for t_ in self.toys if kind in (None, t_.kind)), None)
 
     def open_skins(self):
         from cat_skins import SkinWindow
@@ -184,9 +237,17 @@ class PetFeature(Feature):
             self.cats.append(Cat(self, 1, skins[1]))
         self.director = Director(self)
         self.cats[0].attach_card()
+        if self.toy_meta and self.can_play():   # toys left out last time are still lying about
+            for kind in self.app.settings.get("pet_toys") or []:
+                if kind in toys.KINDS:
+                    self.drop_toy(kind, drop=False, x=self.cats[0].centre() + random.uniform(-260, 260) * self.app.scale)
+        self.last_tick = time.time()
         self.tick()
 
     def teardown(self):
+        for toy in self.toys:
+            toy.top.destroy()
+        self.toys = []
         self.cats[0].detach_card()
         for c in self.cats:
             c.top.destroy()
@@ -202,6 +263,11 @@ class PetFeature(Feature):
         if not self.cats:
             return
         now = time.time()
+        dt = min(0.1, now - self.last_tick)
+        self.last_tick = now
+        for toy in self.toys:
+            toy.ground = self.cats[0].ground - self.floor_gap()
+            toy.tick(dt)
         self.director.tick(now)
         for c in self.cats:
             c.tick(now)
@@ -250,6 +316,9 @@ class Cat:
         self.shown = None
         self.action = None
         self.hop_t = 0
+        self.hop_size = 0.12
+        self.hop_dx = 0.0
+        self.last_kind = None
         self.drag = None
         self.press = None
         self.clamp()
@@ -314,7 +383,7 @@ class Cat:
         lift = 0
         if self.hop_t:
             k = self.hop_t / 12
-            lift = round(math.sin(math.pi * k) * self.h * 0.12)
+            lift = round(math.sin(math.pi * k) * self.h * self.hop_size)
         self.top.geometry(f"{self.w}x{self.h}+{int(self.x)}+{int(self.ground - self.h - lift)}")
 
     def centre(self):
@@ -348,9 +417,9 @@ class Cat:
         speed = (150 if run else 48) * self.app.scale * (0.8 if skin_type(self.skin) == "kitten" else 1.0)
         self.do("move", RUN if run else WALK, 80 if run else 120, target=x, speed=speed, then=then)
 
-    def hop(self):
+    def hop(self, size=0.12, dx=0.0):
         if not self.hop_t:
-            self.hop_t = 12
+            self.hop_t, self.hop_size, self.hop_dx = 12, size, dx / 12
 
     def tick(self, now):
         a = self.action
@@ -381,6 +450,7 @@ class Cat:
             self.finish()
         if self.hop_t:
             self.hop_t -= 1
+            self.x += self.hop_dx
             moved = True
         if moved:
             self.place()
@@ -389,6 +459,7 @@ class Cat:
 
     def finish(self):
         then = self.action.get("then") if self.action else None
+        self.last_kind = self.action["kind"] if self.action else None
         self.action = None
         if then:
             then()
@@ -407,7 +478,17 @@ class Cat:
         if self.index == 0:
             roam = 260 if unobserved else 60    # the first cat carries the card: stay near where you put it
         sleepy = pets.drowsy() or idle > AWAY_IDLE
+        playful = pets.can_play()
+        if playful and self.last_kind == "nap" and random.random() < 0.7:
+            self.last_kind = None
+            self.do("stretch", ["stretch"], 1000, random.uniform(1.4, 2.4), facing=random.choice((-1, 1)))
+            return
         w = dict(self.personality)
+        toy = self.reachable_toy() if playful else None
+        if toy and not sleepy:
+            w["play"] = (30 if unobserved else 6) * (4 if toy.recently_moved() else 1)
+        if playful and unobserved and not sleepy:
+            w["roll"] = 3
         if sleepy:
             w["nap"] *= 8
         elif not unobserved:
@@ -432,6 +513,10 @@ class Cat:
             self.do("look", ["sit_s"], 1000, random.uniform(3, 7))
         elif kind == "nap":
             self.do("nap", ["sleep"], 1000, random.uniform(60, 240) if sleepy else random.uniform(20, 90))
+        elif kind == "play":
+            self.play(toy, rounds=random.randint(1, 3))
+        elif kind == "roll":
+            self.do("roll", ["roll1", "roll2", "roll1", "roll2"], 450, random.uniform(2.0, 3.5))
         else:
             x = self.home + random.uniform(-roam, roam)
             self.walk_to(x, run=unobserved and random.random() < 0.15)
@@ -439,6 +524,66 @@ class Cat:
     def other(self):
         cats = self.pets.cats
         return next((c for c in cats if c is not self), None)
+
+    # ---------- playing with a toy
+
+    def nose_x(self, frame):
+        """Screen x of the cat's nose in a side frame, for the way it faces now."""
+        hx = self.anchors[frame]["head"][0] * self.scale
+        return self.x + (self.w - hx if self.facing > 0 else hx)
+
+    def x_for_nose(self, nose, facing, frame="crouch"):
+        """Where the window goes so the nose is at `nose` when facing that way."""
+        hx = self.anchors[frame]["head"][0] * self.scale
+        return nose - (self.w - hx if facing > 0 else hx)
+
+    def reachable_toy(self):
+        """A toy this cat may go after: the first cat carries the card, so only toys near its spot."""
+        for toy in self.pets.toys:
+            if self.index == 0 and abs(toy.cx() - (self.home + self.w / 2)) > 320 * self.app.scale:
+                continue
+            return toy
+        return None
+
+    def play(self, toy, rounds=1, then=None):
+        """Go up to the toy, crouch, maybe pounce, swat it away; again for a few rounds if it rolled off."""
+        if toy not in self.pets.toys:
+            return then() if then else None
+        facing = -1 if self.centre() > toy.cx() else 1
+        gap = toy.r + 10 * self.app.scale
+        stand = self.x_for_nose(toy.cx() + (gap if facing < 0 else -gap), facing)
+        far = abs(stand - self.x) > 260 * self.app.scale
+        pounce = random.random() < 0.45
+        if pounce:   # stop a leap short of it
+            stand = self.x_for_nose(toy.cx() + (gap + 60 * self.app.scale) * (1 if facing < 0 else -1), facing)
+
+        def at_toy():
+            self.facing = 1 if toy.cx() > self.centre() else -1
+            self.do("play", ["crouch"], 1000, random.uniform(0.6, 1.6), facing=self.facing, then=leap if pounce else swat)
+
+        def leap():
+            self.hop(0.22, 60 * self.app.scale * self.facing)
+            self.do("play", ["pounce"], 1000, 0.75, facing=self.facing, then=swat)
+
+        def swat():
+            self.do("play", ["bat1", "bat2"], 160, 0.32, facing=self.facing, then=hit)
+
+        def hit():
+            if toy in self.pets.toys and abs(toy.cx() - self.nose_x("bat2")) < toy.r + 40 * self.app.scale:
+                toy.kick(self.facing * random.uniform(260, 560) * self.app.scale, -random.uniform(0, 260) * self.app.scale)
+            if rounds > 1 and toy in self.pets.toys:
+                self.do("play", ["crouch"], 1000, random.uniform(0.3, 0.8), facing=self.facing,
+                        then=lambda: self.play(toy, rounds - 1, then))
+            elif then:
+                then()
+            else:
+                self.do("look", ["sit_s"], 1000, random.uniform(1.5, 3), facing=self.facing)
+
+        if abs(stand - self.x) < 4:
+            at_toy()
+        else:
+            self.walk_to(stand, then=at_toy, run=far or toy.moving())
+            self.action["kind"] = "play"
 
     def show_mood(self, mood):
         frames = {"thinking": ["think"], "talking": ["talk", "talk2"], "worried": ["worried"],
@@ -572,8 +717,18 @@ class Director:
             return
         if not unobserved and random.random() < 0.6:
             return   # while you're working they mostly leave each other alone
-        choice = random.choices(["boop", "groom", "chase", "cuddle"], [4, 3, 2 if unobserved else 0, 1])[0]
-        getattr(self, choice)(a, b) if choice != "groom" else self.groom(*random.sample((a, b), 2))
+        ball, yarn = self.pets.toy("ball"), self.pets.toy("yarn")
+        games = {"boop": 4, "groom": 3, "chase": 2 if unobserved else 0, "cuddle": 1,
+                 "pingpong": 5 if ball and unobserved else 0, "yarn_race": 4 if yarn and unobserved else 0}
+        choice = random.choices(list(games), list(games.values()))[0]
+        if choice == "groom":
+            self.groom(*random.sample((a, b), 2))
+        elif choice == "pingpong":
+            self.pingpong(a, b, ball)
+        elif choice == "yarn_race":
+            self.yarn_race(a, b, yarn)
+        else:
+            getattr(self, choice)(a, b)
 
     @staticmethod
     def face_each_other(a, b):
@@ -667,6 +822,77 @@ class Director:
             self.later(int(random.uniform(90, 300) * 1000), lambda: self.end(a, b))
         still.do("together", ["sleep_s"], 1000)
         self.meet(mover, still, settle, gap=0.74)   # facing each other: room for both heads, nose to nose
+
+    def pingpong(self, a, b, ball):
+        """The two sit either side of the ball and swat it back and forth."""
+        self.begin("pingpong")
+        s = a.app.scale
+        half = 150 * s
+        mid = min(max(ball.cx(), half + 40), a.top.winfo_screenwidth() - half - 40)
+        if a.index == 0:   # keep it near the first cat's spot, where the card is
+            mid = min(max(mid, a.home + a.w / 2 - 200 * s), a.home + a.w / 2 + 200 * s)
+        left, right = (a, b) if a.centre() < b.centre() else (b, a)
+        gap = ball.r + 10 * s
+        spots = {left: left.x_for_nose(mid - half + gap, 1), right: right.x_for_nose(mid + half - gap, -1)}
+        ready = []
+
+        def arrived(cat):
+            cat.do("together", ["crouch"], 1000, facing=1 if cat is left else -1)
+            ready.append(cat)
+            if len(ready) == 2:
+                ball.x = mid - ball.w / 2
+                ball.kick(0)
+                self.later(700, lambda: rally(random.choice((left, right)), random.randint(4, 8)))
+        for cat in (left, right):
+            cat.walk_to(spots[cat], then=lambda c=cat: arrived(c))
+            cat.action["kind"] = "together"
+
+        def rally(hitter, left_shots):
+            if ball not in self.pets.toys:
+                return self.end(a, b)
+            receiver = right if hitter is left else left
+            nose = hitter.nose_x("bat2")
+            if abs(ball.cx() - nose) > ball.r + 60 * s:   # it stopped short: go and get it
+                hitter.walk_to(hitter.x_for_nose(ball.cx() - hitter.facing * gap, hitter.facing),
+                               then=lambda: rally(hitter, left_shots))
+                hitter.action["kind"] = "together"
+                return
+            hitter.do("together", ["bat1", "bat2"], 160, facing=hitter.facing)
+            dist = abs(receiver.nose_x("bat2") - ball.cx()) - ball.r
+            ball.kick(hitter.facing * ball.speed_to_travel(dist * random.uniform(0.85, 1.1)))
+            self.later(330, lambda: hitter.do("together", ["crouch"], 1000, facing=hitter.facing))
+            if left_shots <= 1:
+                self.later(2500, lambda: self.end(a, b))
+            else:
+                self.later(450, lambda: wait(receiver, left_shots - 1))
+
+        def wait(cat, left_shots):
+            if ball not in self.pets.toys:
+                return self.end(a, b)
+            if not ball.moving() or abs(ball.cx() - cat.nose_x("bat2")) < ball.r + 30 * s:
+                rally(cat, left_shots)
+            else:
+                self.later(80, lambda: wait(cat, left_shots))
+
+    def yarn_race(self, a, b, yarn):
+        """One bats the yarn away and both chase it; whoever gets there first bats it again."""
+        self.begin("yarn_race")
+        rounds = [random.randint(2, 4)]
+
+        def go():
+            if yarn not in self.pets.toys or rounds[0] <= 0:
+                return self.end(a, b)
+            rounds[0] -= 1
+            first, second = sorted((a, b), key=lambda c: abs(c.centre() - yarn.cx()))
+            first.play(yarn, 1, then=after)
+            if first.action:
+                first.action["kind"] = "together"
+            second.walk_to(second.x_for_nose(yarn.cx(), 1 if yarn.cx() > second.centre() else -1, "walk0"), run=True)
+            second.action["kind"] = "together"
+
+        def after():
+            self.later(random.uniform(500, 1200), go)
+        go()
 
     def come_over(self):
         p = self.pair()

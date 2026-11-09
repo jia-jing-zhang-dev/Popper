@@ -11,8 +11,8 @@ made again.
 | `catmats.py` | The coat as a procedural material: mackerel stripes, the forehead "M", white bib/muzzle/paws, calico patches; read from each vertex's rest position (`rest` attribute) so the pattern stays on the body in every pose. |
 | `coats.py`, `realcoat.py` | The 8 coats (A brown tabby, B orange, C silver tabby, D British blue, E black, F tuxedo, G calico, H white) and the settings for this model. |
 | `catfur.py` | Bakes nothing itself; makes the skin material from a baked coat texture (`coat_<key>` images) and grows the fur (particle hair, kept off the eyes, nose, inner ears and paw pads). |
-| `render_all.py` | `blender -b catrig.blend --python render_all.py -- OUT_DIR` renders every frame for every body type and coat, and writes where the head and ears are in each frame. |
-| `make_cat_frames.py` | Crops all renders to one shared box, scales them, saves WebP to `assets/cats/<coat>_<type>/`, and writes `assets/cats/meta.json` (canvas size, anchors). |
+| `render_all.py` | `blender -b catrig.blend --python render_all.py -- OUT_DIR [--frames=a,b]` (adds frames to an existing set) renders every frame for every body type and coat, and writes where the head and ears are in each frame. |
+| `make_cat_frames.py` | `make_cat_frames.py RENDER_DIR [TOYS_DIR]`. Crops all renders to one shared box, scales them, saves WebP to `assets/cats/<coat>_<type>/`, and writes `assets/cats/meta.json` (canvas size, anchors); toys (`<toy>_<n>.png`, 8 rolling angles of the yarn ball and bell ball modelled in the same .blend) go to `assets/toys/` at the same scale. |
 
 Steps: import the model's glTF, parent it under an empty `Real_root` (scale 0.0085, rotated -90 degrees about Z), store
 each vertex's rest position in a `rest` attribute, bake each coat from `catmats.py` into a `coat_<key>` image on

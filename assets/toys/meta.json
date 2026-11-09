@@ -1,0 +1,18 @@
+{
+ "ball": {
+  "size": [
+   22,
+   22
+  ],
+  "frames": 8,
+  "radius": 11.0
+ },
+ "yarn": {
+  "size": [
+   56,
+   33
+  ],
+  "frames": 8,
+  "radius": 16.5
+ }
+}

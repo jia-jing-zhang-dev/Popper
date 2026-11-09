@@ -34,7 +34,10 @@ screenshot OCR, settings, and spaced-repetition review.
   carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
   sleepy); click it to hear the word again, drag either one to move it. The second keeps it company. They
   sit about, blink, groom, yawn, nap and wander; while you work they stay calm, and when you step away they
-  touch noses, groom each other, chase, and nap cuddled up. Right-click → **Cats…** names each cat and picks its coat
+  touch noses, groom each other, chase, and nap cuddled up. They stretch after a nap and roll over when they're
+  happy. Right-click → **Toss in the yarn ball / bell ball** and a toy drops onto the desktop: the cats stalk it,
+  pounce, swat it about, bat the ball back and forth between them or race for the yarn. Drag a toy to tease them
+  (let go to throw it). Right-click → **Cats…** names each cat and picks its coat
   (8) and body (adult, kitten, slim, longhair), or turns the second cat off. Turn them off in Settings →
   Features to get the plain card back.
 - **A face on the card** (when the desktop cats are off). A little bubble that blinks, thinks while the study buddy is

@@ -1,11 +1,13 @@
 """Turn the Blender renders into the app's cat frames.
 
-    python tools/cat_render/make_cat_frames.py RENDER_DIR
+    python tools/cat_render/make_cat_frames.py RENDER_DIR [TOYS_DIR]
 
 RENDER_DIR is what render_all.py wrote: one folder per skin (<coat>_<type>/<frame>.png, 360 px renders from a
 fixed orthographic camera) and anchors_<type>.json (head and ear positions, 0..1 of the render). Every frame of
 every skin is cropped to the same box, so all cats share one scale and one ground line, scaled to CANVAS_H and
 saved as WebP (small, keeps alpha) in assets/cats/. meta.json gets the canvas size and the anchors in pixels.
+TOYS_DIR has <toy>_<n>.png renders from the same camera (rolling angles); they get the cats' scale, so a toy is
+the right size next to a cat, and go to assets/toys/ with their own meta.json.
 """
 
 import json
@@ -20,7 +22,7 @@ CANVAS_H = 200   # stored frame height; the app scales it to the screen
 PAD = 6
 
 
-def main(src):
+def main(src, toys=None):
     skins = sorted(d for d in os.listdir(src) if os.path.isdir(os.path.join(src, d)))
     # one crop box for everything: the union of what any frame covers
     box = None
@@ -52,7 +54,31 @@ def main(src):
                                 "side": a["side"]} for fr, a in data.items()}
     json.dump({"canvas": canvas, "anchors": anchors}, open(os.path.join(OUT, "meta.json"), "w"), indent=1)
     print("canvas", canvas, "skins", len(skins))
+    if toys:
+        make_toys(toys, k)
+
+
+def make_toys(src, k):
+    """Each toy's rolling frames, cropped to one box per toy, at the cats' scale."""
+    out = os.path.join(OUT, "..", "toys")
+    os.makedirs(out, exist_ok=True)
+    meta = {}
+    names = sorted({f.rsplit("_", 1)[0] for f in os.listdir(src) if f.endswith(".png")})
+    for name in names:
+        files = sorted((f for f in os.listdir(src) if f.startswith(name + "_") and f.endswith(".png")),
+                       key=lambda f: int(f.rsplit("_", 1)[1][:-4]))
+        ims = [Image.open(os.path.join(src, f)).convert("RGBA") for f in files]
+        box = None
+        for im in ims:
+            bb = im.getchannel("A").point(lambda a: 255 if a > 8 else 0).getbbox()
+            box = bb if box is None else (min(box[0], bb[0]), min(box[1], bb[1]), max(box[2], bb[2]), max(box[3], bb[3]))
+        size = (max(1, round((box[2] - box[0]) * k)), max(1, round((box[3] - box[1]) * k)))
+        for i, im in enumerate(ims):
+            im.crop(box).resize(size, Image.LANCZOS).save(os.path.join(out, f"{name}_{i}.webp"), "WEBP", quality=85, method=6)
+        meta[name] = {"size": size, "frames": len(ims), "radius": round(size[1] / 2, 1)}
+    json.dump(meta, open(os.path.join(out, "meta.json"), "w"), indent=1)
+    print("toys", meta)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
