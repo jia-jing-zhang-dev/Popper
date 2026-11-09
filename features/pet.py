@@ -45,6 +45,7 @@ SIT_HEIGHT = 92           # an adult sitting cat is about this tall on screen, b
 CALM_IDLE = 45            # seconds without input before the cats feel unobserved
 AWAY_IDLE = 4 * 60        # ... and before they settle down for a long nap together
 HAT_WIDTH = 3.2         # an accessory's width, in ear-base spacings
+STROKE_SECONDS = 2.5   # how far back mouse moves over a cat count towards one stroke
 MELT_AFTER = 5.0       # seconds of petting before a cat melts down and lies in front of you
 TOY_SIZE = 1.6         # toys drawn this much bigger than true scale, so they read next to the cats
 MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
@@ -908,24 +909,37 @@ class Cat:
         if self.press and self.press[4]:
             return
         now = time.time()
-        self.stroke = [p for p in self.stroke if now - p[0] < 1.2] + [(now, e.x_root, e.y_root)]
+        self.stroke = [p for p in self.stroke if now - p[0] < STROKE_SECONDS] + [(now, e.x_root, e.y_root)]
         a = self.action
         if a and a.get("petting"):           # still being petted: keep enjoying it
             a["until"] = max(a["until"] or 0, now + 1.4)
             if a["kind"] == "petted" and now - a["petting"] > MELT_AFTER and "sleep" not in a["frames"]:
                 self.melt()
             return
-        turns, path, last = 0, 0.0, 0
+        # Only the cat's visible fur gets mouse events (the window's see-through colour lets them pass), so a small
+        # kitten gives a short trail: judge the stroke by the cat's own width, at a natural, unhurried pace.
+        turns, path = 0, 0.0
+        last = {"x": 0, "y": 0}
         for (_, x0, y0), (_, x1, y1) in zip(self.stroke, self.stroke[1:]):
-            dx = x1 - x0
-            path += abs(dx) + abs(y1 - y0) * 0.5
-            if abs(dx) >= 3:
-                d = 1 if dx > 0 else -1
-                if last and d != last:
-                    turns += 1
-                last = d
-        if turns >= 2 and path >= 45 * self.app.scale:
+            path += abs(x1 - x0) + abs(y1 - y0)
+            for axis, d in (("x", x1 - x0), ("y", y1 - y0)):   # back and forth, or up and down along the back
+                if abs(d) >= 2:
+                    sign = 1 if d > 0 else -1
+                    if last[axis] and sign != last[axis]:
+                        turns += 1
+                    last[axis] = sign
+        body = self.body_width()
+        if (turns >= 1 and path >= body * 0.6) or path >= body * 1.5:
             self.petted(e.x_root)
+
+    def body_width(self):
+        """How wide the cat itself looks on screen (sitting), not its window."""
+        key = (skin_type(self.skin), "body")
+        if key not in self.pets.fronts:
+            im = Image.open(os.path.join(ASSETS, self.skin, "sit.webp")).getchannel("A")
+            bb = im.point(lambda a: 255 if a > 110 else 0).getbbox()
+            self.pets.fronts[key] = bb[2] - bb[0]
+        return self.pets.fronts[key] * self.scale
 
     def petted(self, hand_x):
         """Being petted. Whatever it's doing in a pose of its own (lying, sleeping, eating, drinking, scratching,
