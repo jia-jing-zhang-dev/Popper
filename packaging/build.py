@@ -35,7 +35,7 @@ def main():
     ], check=True, cwd=ROOT)
 
     app_dir = os.path.join(DIST, NAME)
-    for doc in ("使用说明 How to use.txt",):
+    for doc in ("How to use.txt",):
         shutil.copy(os.path.join(HERE, doc), app_dir)
     archive = shutil.make_archive(os.path.join(DIST, f"{NAME}-windows"), "zip", DIST, NAME)
     print(f"{archive}: {os.path.getsize(archive) / 1e6:.1f} MB")

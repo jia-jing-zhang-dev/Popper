@@ -1,4 +1,4 @@
-# Desktop Study Cats (桌面学习猫)
+# Desktop Study Cats
 
 **Two realistic cats live on your Windows desktop and keep you company while you study: instant word lookup, review, goals and study time, with a cat that cheers you on.**
 
@@ -34,9 +34,9 @@ screenshot OCR, settings, and spaced-repetition review.
   carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
   sleepy); click it to hear the word again, drag either one to move it, and stroke one (move the mouse back and
   forth over it) to pet it: it turns and looks at you, eyes closing with pleasure and hearts over its head (or
-  rolls over for a belly rub), melts down and lies there if you keep going, and a sleeping or eating cat just carries on with hearts. The second keeps it company. They
-  sit about, blink, groom, yawn, nap and wander; while you work they stay calm, and when you step away they
-  touch noses, groom each other, chase, and nap cuddled up. They stretch after a nap and roll over when they're
+  rolls over for a belly rub), melts down and lies there if you keep going, and a sleeping or eating cat just carries on with hearts. Click either cat and it
+  turns to you and meows. They sit about, blink, groom, yawn, nap and wander; while you work they stay calm but
+  still drop by to touch noses or groom each other, and when you step away they also groom each other, chase, and nap cuddled up. They stretch after a nap and roll over when they're
   happy. Right-click → **Toss in the yarn ball / bell ball** and a toy drops onto the desktop: the cats stalk it,
   pounce, swat it about, bat the ball back and forth between them or race for the yarn. Drag a toy to tease them
   (let go to throw it). They have a food bowl, a water bowl, a scratching post and a bed on the desktop floor
@@ -44,7 +44,7 @@ screenshot OCR, settings, and spaced-repetition review.
   too), swish their tails, arch when something whizzes past and rub cheeks with each other. They get hungry over
   a few hours; right-click → **Feed the cats** fills the bowl and they come and eat from either side. With an
   empty bowl, a hungry cat sits by it and meows at you. Right-click → **Cats…** names each cat and picks its coat
-  (8) and body (adult, kitten, slim, longhair), or turns the second cat off. Turn them off in Settings →
+  (8) and body (adult, kitten, slim, longhair), hands the card to the other cat (**Let … carry the card**), or turns the second cat off. Turn them off in Settings →
   Features to get the plain card back.
 - **A face on the card** (when the desktop cats are off). A little bubble that blinks, thinks while the study buddy is
   working, opens its mouth when it has a question, looks worried when you haven't studied, dozes when
@@ -169,7 +169,7 @@ For screenshot OCR in a language other than English, Windows needs that language
 
 | Setting | What it does |
 | --- | --- |
-| Interface language | English or 简体中文 |
+| Interface language | English or Simplified Chinese |
 | I'm learning | The language you read in. Spoken with the voice below |
 | Translate into | Your own language |
 | Voice | Regional accent for the language you're learning |
