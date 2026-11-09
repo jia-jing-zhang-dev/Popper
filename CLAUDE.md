@@ -142,6 +142,10 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
   `PIL.ImageGrab` (the process is DPI-aware). Add `root.after(15000, root.destroy)` so a failed step
   can't hang the run. Look at the screenshots. Most UI bugs here were visual.
 - Test both `ui_lang` values when you change UI text.
+- Before restarting the owner's copy, also start the app with the owner's own kind of settings (study buddy on,
+  custom cat names, toys and needs saved): `.venv\Scripts\python word_popper.py` for ~20 s and read the console.
+  A fresh temp setup missed a start-up crash (a feature refreshed the card before the buddy had started).
+  Features start in `FEATURES` order, so `start()` must not reach into features listed after it.
 - Tk refuses `event_generate("<Double-1>")`. To simulate a double-click on a `Text` tag, send `<Motion>`
   first, then two `<ButtonPress-1>`/`<ButtonRelease-1>` pairs with `time=` values about 100 ms apart.
 - Don't drive the owner's real mouse or keyboard (synthetic input, Snipping Tool) without asking. It
