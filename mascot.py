@@ -1,4 +1,4 @@
-"""泡泡, the bubble on the card: drawn in code so it stays sharp at any size, with a face per mood.
+"""The bubble face on the card (shown when the desktop cats are off): drawn in code so it stays sharp at any size, with a face per mood.
 
 Moods: happy (default), blink, thinking, talking, worried, celebrate, sleepy.
 """

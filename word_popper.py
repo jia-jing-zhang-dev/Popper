@@ -1,4 +1,4 @@
-"""Desktop Study Cats — two cats on the desktop keep you company while you study (the card is 泡泡's speech bubble).
+"""Desktop Study Cats — two cats on the desktop keep you company while you study (the card is the first cat's speech bubble).
 
 The core is word lookup, described below; everything else is a feature in features/.
 
@@ -351,7 +351,7 @@ class App:
         if self.notice:
             return self.notice[2]
         if dt_hour() >= 23 or dt_hour() < 7:
-            return "sleepy"  # late at night 泡泡 dozes
+            return "sleepy"  # late at night the cat dozes
         buddy = next((f for f in getattr(self, "features", []) if f.id == "buddy"), None)
         if buddy and buddy.on and buddy.waiting:
             return "thinking"

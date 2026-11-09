@@ -1,14 +1,14 @@
-"""Desktop pets: two realistic cats live along the bottom of the screen; the first one, 泡泡, carries the card.
+"""Desktop pets: two realistic cats live along the bottom of the screen; the first one carries the card.
 
 Each cat is a borderless window whose background colour is made transparent. The frames are renders of a
 rigged 3D cat (assets/cats, see CREDITS.md there): 8 coats x 4 body types, 29 poses each. Front-facing poses
-are for sitting about and showing 泡泡's moods; side-facing ones (they face left, and are mirrored to face
+are for sitting about and showing the first cat's moods; side-facing ones (they face left, and are mirrored to face
 right) are for walking, running and the two cats' interactions.
 
 How they behave: each cat runs one action at a time (sit, groom itself, yawn, nap, look around, walk, run).
 When an action ends it picks the next at random, weighted by what's going on: while you're working they stay
 calm and close to home; when you've left the keyboard for a while they wander, play and get together (touch
-noses, groom each other, chase, nap cuddled up). 泡泡 also shows the card's mood (thinking, talking,
+noses, groom each other, chase, nap cuddled up). The first cat also shows the card's mood (thinking, talking,
 worried, celebrating, sleepy) and stays near its spot so the card doesn't run away from you.
 """
 
@@ -23,7 +23,7 @@ import tkinter as tk
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageTk
 
 from focus import idle_seconds
-from i18n import t
+from i18n import CAT, t
 
 from .base import Feature
 
@@ -32,6 +32,9 @@ ASSETS = os.path.join(ROOT, "assets", "cats")
 COATS = "ABCDEFGH"
 TYPES = ("adult", "kitten", "slim", "fluffy")
 DEFAULT_SKINS = ["A_adult", "D_kitten"]
+# each coat's default name (Chinese, English); either cat can be renamed in the Cats window
+COAT_NAMES = {"A": ("虎子", "Tiger"), "B": ("橘子", "Mandarin"), "C": ("银宝", "Silver"), "D": ("蓝莓", "Blueberry"),
+              "E": ("芝麻", "Sesame"), "F": ("奥利奥", "Oreo"), "G": ("花花", "Callie"), "H": ("雪球", "Snowball")}
 
 KEY = "#010203"           # this colour is see-through in the pet windows
 KEY_RGB = (1, 2, 3)
@@ -90,6 +93,7 @@ class PetFeature(Feature):
         self.cats = []
         self.meta = load_meta()
         self.director = None
+        self.update_name()
         self.app.root.after(300, self.sync)
         self.app.root.after(1000, self.sync_loop)
 
@@ -107,6 +111,40 @@ class PetFeature(Feature):
         s += DEFAULT_SKINS[len(s):]
         return s[:2]
 
+    def names(self):
+        """Each cat's name: the one the owner gave it, else its coat's; the two are never the same."""
+        zh = self.app.settings.get("ui_lang") == "zh"
+        custom = list(self.app.settings.get("pet_names") or []) + [None, None]
+        out = []
+        for i, skin in enumerate(self.skins()):
+            name = (custom[i] or "").strip()
+            if not name:
+                name = COAT_NAMES[skin[0]][0 if zh else 1]
+                if out and name == out[0]:
+                    name = ("小" + name) if zh else (name + " Jr.")
+            out.append(name)
+        return out
+
+    def set_name(self, i, name):
+        """Rename cat i; refused (False) when the other cat already has that name."""
+        name = name.strip()[:16]
+        if name and name == self.names()[1 - i]:
+            return False
+        names = list(self.app.settings.get("pet_names") or []) + [None, None]
+        names[i] = name or None
+        self.app.settings["pet_names"] = names[:2]
+        self.app.save()
+        self.update_name()
+        return True
+
+    def update_name(self):
+        """Strings that say {cat} use the first cat's name (i18n.CAT)."""
+        name = self.names()[0]
+        if CAT["name"] != name:
+            CAT["name"] = name
+            if hasattr(self.app, "word_lbl"):
+                self.app.update_status()
+
     def two(self):
         return self.app.settings.get("pet_two", True)
 
@@ -115,6 +153,7 @@ class PetFeature(Feature):
         skins[i] = skin
         self.app.settings["pet_skins"] = skins
         self.app.save()
+        self.update_name()
         self.rebuild()
 
     def set_two(self, on):
@@ -125,6 +164,7 @@ class PetFeature(Feature):
     # ---------- on / off
 
     def sync_loop(self):
+        self.update_name()     # also follows a change of interface language
         self.sync()
         if self.cats and self.cats[0].style != self.cats[0].wanted_style():
             self.cats[0].restyle()
@@ -223,7 +263,7 @@ class Cat:
     # ---------- looks
 
     def wanted_style(self):
-        """(accessory, size factor): only 泡泡 wears what it unlocked with the bond, and grows a little."""
+        """(accessory, size factor): only the first cat wears what it unlocked with the bond, and grows a little."""
         if self.index:
             return None, 1.0
         try:
@@ -366,7 +406,7 @@ class Cat:
         unobserved = idle > CALM_IDLE
         roam = 600 if unobserved else 160
         if self.index == 0:
-            roam = 260 if unobserved else 60    # 泡泡 carries the card: stay near where you put it
+            roam = 260 if unobserved else 60    # the first cat carries the card: stay near where you put it
         r = random.random()
         if r < 0.38:
             self.sit(random.uniform(4, 12))
@@ -396,7 +436,7 @@ class Cat:
         elif self.action and self.action["kind"] == "mood":
             self.sit(random.uniform(2, 5))
 
-    # ---------- the card rides along with 泡泡
+    # ---------- the card rides along with the first cat
 
     def attach_card(self):
         app = self.app
@@ -557,7 +597,7 @@ class Director:
         runner, chaser = random.sample((a, b), 2)
         sw = runner.top.winfo_screenwidth()
         far = random.uniform(0.1, 0.9) * sw
-        if runner.index == 0:   # 泡泡 carries the card: a short dash only
+        if runner.index == 0:   # the first cat carries the card: a short dash only
             far = runner.home + random.choice((-1, 1)) * 220 * runner.app.scale
         runner.walk_to(far, run=True, then=lambda: self.caught(runner, chaser))
         runner.action["kind"] = "together"
@@ -583,7 +623,7 @@ class Director:
 
     def cuddle(self, a, b):
         self.begin("cuddle")
-        mover, still = (b, a)   # the other cat comes to 泡泡
+        mover, still = (b, a)   # the second cat comes to the first
 
         def sleep():
             mover.facing = still.facing = random.choice((-1, 1))

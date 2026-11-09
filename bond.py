@@ -1,4 +1,4 @@
-"""泡泡's bond: studying brings you closer to 泡泡, who grows a little and unlocks things to wear.
+"""The cat's bond: studying brings you closer to the first cat, which grows a little and unlocks things to wear.
 
 How it is meant to motivate (self-determination theory and the research on rewards and learning):
 - Points come from effortful learning: reviewing words (a forgotten word still earns: retrieval practice
@@ -7,7 +7,7 @@ How it is meant to motivate (self-determination theory and the research on rewar
   competence keep, not crowd out, interest).
 - The bond never goes down and there is no streak to lose. Loss-framed streaks make a missed day feel like
   failure; a rest day here costs nothing.
-- Unlocks are about 泡泡 (a nickname, things it wears, a little growth), which is about relatedness, and they
+- Unlocks are about the cat (a nickname, things it wears, a little growth), which is about relatedness, and they
   are never required for anything.
 
 Points are worked out from what the other features already store (finished tasks and goals, library
@@ -177,7 +177,7 @@ class BondStore:
         return self.db.execute("SELECT * FROM bond_points ORDER BY ts DESC LIMIT ?", (n,)).fetchall()
 
 
-# ---------- what 泡泡 wears
+# ---------- what the first cat wears
 
 def wear(img, kind):
     """Draw an accessory on top of the head of whatever is in `img` (found from its outline)."""
@@ -245,7 +245,7 @@ def wear_at(img, kind, cx, top, w):
 
 
 def preview(kind, size, skin="A_adult", frame="sit"):
-    """The first cat (泡泡) wearing `kind`, on a transparent background, for the bond window."""
+    """The first cat wearing `kind`, on a transparent background, for the bond window."""
     import json
     from features.pet import ASSETS, skin_type
     meta = json.load(open(os.path.join(ASSETS, "meta.json"), encoding="utf-8"))
@@ -384,7 +384,7 @@ class BondWindow:
 
 
 class LevelUp:
-    """泡泡 levelled up: a small card with what it unlocked."""
+    """The first cat levelled up: a small card with what it unlocked."""
 
     def __init__(self, app, level, old, first=False):
         app.set_mood("celebrate", 8)

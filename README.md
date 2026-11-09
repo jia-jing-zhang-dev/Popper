@@ -30,14 +30,14 @@ screenshot OCR, settings, and spaced-repetition review.
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
-- **Two cats on your desktop.** Realistic cats with real fur live along the bottom of the screen. The first,
-  泡泡, carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
+- **Two cats on your desktop.** Realistic cats with real fur live along the bottom of the screen. The first
+  carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
   sleepy); click it to hear the word again, drag either one to move it. The second keeps it company. They
   sit about, blink, groom, yawn, nap and wander; while you work they stay calm, and when you step away they
-  touch noses, groom each other, chase, and nap cuddled up. Right-click → **Cats…** picks each cat's coat
+  touch noses, groom each other, chase, and nap cuddled up. Right-click → **Cats…** names each cat and picks its coat
   (8) and body (adult, kitten, slim, longhair), or turns the second cat off. Turn them off in Settings →
   Features to get the plain card back.
-- **A face on the card.** 泡泡 is a little bubble that blinks, thinks while the study buddy is
+- **A face on the card** (when the desktop cats are off). A little bubble that blinks, thinks while the study buddy is
   working, opens its mouth when it has a question, looks worried when you haven't studied, dozes when
   paused, and celebrates when you finish something.
 - **A card that stays put.** The card sits quietly in a corner. Click it to hear the word again,
@@ -51,8 +51,8 @@ screenshot OCR, settings, and spaced-repetition review.
   studied, and once a day it shares something new, picked from what you've been curious about.
   Quiet 23:00-08:00. Your messages and the titles of the study windows you have open go to Claude.
   Off by default.
-- **泡泡's bond.** Studying brings you closer to 泡泡. Word review (a forgotten word still counts),
-  finished tasks and goals, library visits and study time (capped per day) earn ♥. Levels unlock a nickname 泡泡 calls you and things it wears (sprout,
+- **The cat's bond.** Studying brings you closer to your cat. Word review (a forgotten word still counts),
+  finished tasks and goals, library visits and study time (capped per day) earn ♥. Levels unlock a nickname the cat calls you and things it wears (sprout,
   bow, grad cap, star clip, crown), and the desktop pet grows a little. The bond never goes down and there's
   no streak to lose, so rest days are fine. Points tied to practice rather than time, and no loss-framed
   streaks, follow the research on rewards and motivation (self-determination theory).
@@ -127,7 +127,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
 | Look back on a day and write a reflection | Right-click → **Journal…** |
-| Chat with the study buddy | Right-click → **Chat with Paopao…**, or click the card when it says Paopao has a message |
+| Chat with the study buddy | Right-click → **Chat with Tiger…** (the first cat's name), or click the card when it says the cat has a message |
 
 Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
 your word list.
@@ -210,7 +210,7 @@ library.py          library check-in sessions, streaks, goals and to-dos, and th
 journal.py          day-by-day journal built from each feature's sections, with written reflections
 focus.py            study-time detection: foreground window + idle time, rules, the study-time window
 buddy.py            study buddy: runs `claude -p`, the chat window, its tables
-bond.py             泡泡's bond: points, levels, accessories, the bond window
+bond.py             the cat's bond: points, levels, accessories, the bond window
 features/           one module per feature (review, todos, library, journal...); copy _template.py to add one
 settings_window.py  settings UI and Start-with-Windows shortcut
 languages.py        supported languages, voices, OCR tags

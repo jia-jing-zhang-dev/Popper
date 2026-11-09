@@ -1,4 +1,4 @@
-"""泡泡's bond: studying earns closeness with 泡泡, which levels up, grows and unlocks things to wear (see bond.py)."""
+"""The cat's bond: studying earns closeness with the first cat, which levels up, grows and unlocks things to wear (see bond.py)."""
 
 from bond import (NICKNAME_LEVEL, SOURCES, BondStore, BondWindow, LevelUp, growth, level_of,
                   title_key, unlocked)
@@ -26,12 +26,12 @@ class BondFeature(Feature):
         return level_of(self.store.total())[0]
 
     def hat(self):
-        """What 泡泡 wears: the owner's pick, if it's unlocked."""
+        """What the first cat wears: the owner's pick, if it's unlocked."""
         hat = self.app.settings.get("bond_hat")
         return hat if hat in unlocked(self.level()) else None
 
     def skin(self):
-        """泡泡's cat skin, for the bond window's pictures."""
+        """The first cat's skin, for the bond window's pictures."""
         try:
             return self.app.feature("pet").skins()[0]
         except StopIteration:
@@ -93,7 +93,7 @@ class BondFeature(Feature):
     # ---------- what the buddy and the card see
 
     def buddy_context(self):
-        """A line for the study buddy's daily context, so 泡泡 talks like the friend it has become."""
+        """A line for the study buddy's daily context, so the cat talks like the friend it has become."""
         level = self.level()
         line = t("buddy_ctx_bond", level=level, title=t(title_key(level)))
         nick = self.app.settings.get("bond_nick", "").strip()

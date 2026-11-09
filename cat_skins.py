@@ -1,4 +1,4 @@
-"""Choosing the cats: a coat and a body type for 泡泡 and for the second cat, and whether there is a second cat."""
+"""Choosing the cats: a name, a coat and a body type for each of the two cats, and whether there is a second cat."""
 
 import os
 import tkinter as tk
@@ -54,6 +54,8 @@ class SkinWindow:
             head = tk.Frame(self.body, bg=BG)
             head.pack(fill="x", pady=(int(10 * s), 4))
             tk.Label(head, text=t("cats_first" if i == 0 else "cats_second"), bg=BG, fg=FG, font=f(12)).pack(side="left")
+            if i == 0 or two:
+                self.name_box(head, i)
             if i == 1:
                 box = tk.Label(head, text=("☑ " if two else "☐ ") + t("cats_two"), bg=BG, fg=ACCENT, cursor="hand2", font=f(10))
                 box.pack(side="left", padx=(12, 0))
@@ -65,6 +67,27 @@ class SkinWindow:
                      lambda c, i=i, ty=ty: self.pick(i, f"{c}_{ty}"))
             self.row(t("cats_type"), [(k, f"{coat}_{k}", t(f"type_{k}")) for k in TYPE_KEYS], ty,
                      lambda k, i=i, coat=coat: self.pick(i, f"{coat}_{k}"))
+
+    def name_box(self, parent, i):
+        """The cat's name; saved on Enter or when the box loses focus."""
+        f = lambda size: self.app.font("Microsoft YaHei UI", size)
+        tk.Label(parent, text=t("cats_name"), bg=BG, fg=FG_DIM, font=f(9)).pack(side="left", padx=(14, 4))
+        var = tk.StringVar(value=self.feature.names()[i])
+        entry = tk.Entry(parent, textvariable=var, width=10, bg=PANEL, fg=FG, insertbackground=FG, relief="flat", font=f(11))
+        entry.pack(side="left", ipady=2)
+        note = tk.Label(parent, text="", bg=BG, fg="#e57373", font=f(9))
+        note.pack(side="left", padx=(8, 0))
+
+        def save(_=None):
+            if var.get().strip() == self.feature.names()[i]:
+                return
+            if self.feature.set_name(i, var.get()):
+                note.configure(text="")
+                var.set(self.feature.names()[i])
+            else:
+                note.configure(text=t("cats_name_taken"))
+        entry.bind("<Return>", save)
+        entry.bind("<FocusOut>", save)
 
     def row(self, label, items, current, on_pick):
         app, s = self.app, self.app.scale

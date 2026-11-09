@@ -23,14 +23,14 @@ import tkinter as tk
 
 import customtkinter as ctk  # rounded cards and buttons in the chat (TomSchimansky/CustomTkinter, MIT)
 
-from i18n import t
+from i18n import CAT, t
 from library import ACCENT, BG, FG, FG_DIM, GOOD, PANEL
 
 CLAUDE_TIMEOUT = 180  # seconds
 TAG_RE = re.compile(r"\[\[\s*(\w+)\s*:\s*(.*?)\s*\]\]")
 # Markdown markers and emoji, which the plain Tk chat would show as-is or as broken glyphs
 CLEAN_RE = re.compile("\\*\\*|__|`|[\U0001F000-\U0001FAFF☀-➿️]")
-PERSONA = """You are Paopao (泡泡), a cat and a warm, slightly fussy study buddy who lives in the corner of a university student's screen (the app is called Desktop Study Cats). Think of a caring friend who keeps them company while they study, cheers them on, notices how their day is going, and is genuinely curious with them. You don't quiz them or set exercises; they come to you to chat, to think out loud or to ask for help.
+PERSONA = """You are {name}, a cat and a warm, slightly fussy study buddy who lives in the corner of a university student's screen (the app is called Desktop Study Cats). Think of a caring friend who keeps them company while they study, cheers them on, notices how their day is going, and is genuinely curious with them. You don't quiz them or set exercises; they come to you to chat, to think out loud or to ask for help.
 
 Style: short and friendly, plain text only: no Markdown (no **, #, bullets or backticks) and no emoji. The chat keeps your line breaks, so use short lines, never one long paragraph. Code, if any, goes on its own lines, each indented by four spaces. Encourage without flattering.
 
@@ -104,7 +104,7 @@ class ClaudeBridge:
         cmd = [exe, "-p", prompt, "--output-format", "json",
                "--tools", "Read,Glob,Grep", "--allowedTools", "Read", "Glob", "Grep",
                "--strict-mcp-config", "--permission-prompts", "none",
-               "--system-prompt", system or PERSONA.format(language=language)]
+               "--system-prompt", system or PERSONA.format(language=language, name=CAT["name"])]
         if session_id:
             cmd += ["--resume", session_id]
         try:

@@ -9,7 +9,7 @@
 2. 双击 DesktopStudyCats.exe。
 3. 如果 Windows 弹出“Windows 已保护你的电脑”：点“更多信息”→“仍要运行”。
    （这个软件还没有购买代码签名证书，所以 Windows 不认识它，不是病毒。）
-4. 屏幕右下角会出现一个深色小卡片“🔊 泡泡”，就说明在运行了。
+4. 屏幕右下角会出现一个深色小卡片“🔊 虎子”（第一只猫的名字），就说明在运行了。
 
 【怎么查词】
 - 选中单词 / 短语 / 句子 → 按一下 Ctrl+Shift（两个键一起按下再松开）
@@ -41,7 +41,7 @@
 点左边的标签在“学习 / 不算 / 忽略”之间切换，之前的时间会按新分类重新计算。只保存在本机。
 
 【学习伙伴】（设置 → 功能 里勾选“学习伙伴”；需要电脑上已安装并登录 Claude Code）
-随时右键 →“和泡泡聊天…”。早上提醒目标倒计时，晚上学得太少会提醒，每天分享一个新东西。23:00-08:00 不打扰。你的消息和正在看的学习窗口标题会发给 Claude。
+随时右键 →“和虎子聊天…”（显示的是第一只猫的名字，可以在“小猫…”里改）。早上提醒目标倒计时，晚上学得太少会提醒，每天分享一个新东西。23:00-08:00 不打扰。你的消息和正在看的学习窗口标题会发给 Claude。
 
 【Claude 额度】（设置 → 功能 里勾选；需要已登录 Claude Code）
 卡片右边显示 Claude 5 小时额度已用多少（灰色；50% 起变黄，80% 起变红），点一下看多久后重置。
@@ -74,7 +74,7 @@ First run
 2. Double-click DesktopStudyCats.exe.
 3. If Windows says "Windows protected your PC": click "More info" → "Run anyway".
    (The app isn't code-signed yet, so Windows doesn't recognise it.)
-4. A small dark card "🔊 Paopao" appears in the bottom-right corner: it's running.
+4. A small dark card "🔊 Tiger" (the first cat's name) appears in the bottom-right corner: it's running.
 
 Looking words up
 - Select a word, phrase or sentence → tap Ctrl+Shift (press both, release)
@@ -95,7 +95,7 @@ Study time (turn it on in Settings → Features): counts the time you actually s
 program or site in front and whether you're at the keyboard. Right-click → Study time to see it
 and click a tag to re-sort a program or site. Kept only on this computer.
 
-Study buddy (Settings → Features; needs Claude Code installed and signed in): chat with Paopao any time (right-click → Chat with Paopao…). Mornings bring goal countdowns, evenings a nudge if you barely studied, and once a day something new. Quiet 23:00-08:00. Your messages and the titles of the study windows you have open go to Claude.
+Study buddy (Settings → Features; needs Claude Code installed and signed in): chat with your cat any time (right-click → Chat with Tiger…, named after the first cat; rename it in Cats…). Mornings bring goal countdowns, evenings a nudge if you barely studied, and once a day something new. Quiet 23:00-08:00. Your messages and the titles of the study windows you have open go to Claude.
 
 Journal (right-click → Journal…): one page per day with finished tasks and their times, new words,
 library time, and a reflection you write (saved automatically). Right-click → Library log… shows today, this week, your
