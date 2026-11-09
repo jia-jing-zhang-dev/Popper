@@ -32,7 +32,8 @@ screenshot OCR, settings, and spaced-repetition review.
   learning, spoken aloud.
 - **Two cats on your desktop.** Realistic cats with real fur live along the bottom of the screen. The first
   carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
-  sleepy); click it to hear the word again, drag either one to move it. The second keeps it company. They
+  sleepy); click it to hear the word again, drag either one to move it, and stroke one (move the mouse back and
+  forth over it) to pet it: it leans into your hand with its eyes closed and hearts over its head. The second keeps it company. They
   sit about, blink, groom, yawn, nap and wander; while you work they stay calm, and when you step away they
   touch noses, groom each other, chase, and nap cuddled up. They stretch after a nap and roll over when they're
   happy. Right-click → **Toss in the yarn ball / bell ball** and a toy drops onto the desktop: the cats stalk it,

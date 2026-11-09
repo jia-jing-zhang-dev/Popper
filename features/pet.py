@@ -83,10 +83,24 @@ def frame_image(skin, frame, scale, mirror=False, hat=None, anchor=None, mark=No
         rgba = ImageOps.mirror(rgba)
     if mark:
         d = ImageDraw.Draw(rgba)
-        font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", max(12, h // 7))
-        x = w * (0.30 if mirror else 0.62) if anchor is None else (anchor["head"][0] * scale + h * 0.12)
-        d.text((x, h * 0.02), mark, font=font, fill=(255, 255, 255, 255),
-               stroke_width=max(2, h // 70), stroke_fill=(31, 36, 48, 255))
+        if anchor is not None:
+            hx, hy = anchor["head"][0] * scale, anchor["head"][1] * scale
+            hx = w - hx if mirror else hx
+        else:
+            hx, hy = w * (0.40 if mirror else 0.60), h * 0.35
+        if mark.startswith("hearts"):   # being petted: pink hearts over the head, bobbing between two heights
+            font = ImageFont.truetype(r"C:\Windows\Fonts\seguisym.ttf", max(12, h // 9))
+            up = h * (0.05 if mark == "hearts2" else 0.0)
+            for dx, dy, size in ((-0.08, 0.16, 1.0), (0.06, 0.24, 0.8)):
+                f = font if size == 1.0 else ImageFont.truetype(r"C:\Windows\Fonts\seguisym.ttf", max(10, int(h // 9 * size)))
+                d.text((hx + dx * h, hy - dy * h - up), "\u2665", font=f, fill=(255, 120, 160, 255),
+                       stroke_width=max(1, h // 110), stroke_fill=(255, 255, 255, 255))
+        else:
+            font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", max(12, h // 7))
+            x = hx + h * 0.10 if anchor is not None else hx
+            y = max(0, hy - h * 0.28) if anchor is not None else h * 0.02
+            d.text((x, y), mark, font=font, fill=(255, 255, 255, 255),
+                   stroke_width=max(2, h // 70), stroke_fill=(31, 36, 48, 255))
     # keep fairly opaque pixels only: soft fur edges would blend with the see-through colour into a fringe
     base = Image.new("RGB", rgba.size, KEY_RGB)
     base.paste(rgba.convert("RGB"), mask=rgba.getchannel("A").point(lambda a: 255 if a > 110 else 0))
@@ -453,6 +467,8 @@ class Cat:
         self.label.bind("<B1-Motion>", self.on_motion)
         self.label.bind("<ButtonRelease-1>", self.on_release)
         self.label.bind("<Button-3>", self.app.show_menu)
+        self.label.bind("<Motion>", self.on_hover)
+        self.stroke = []        # recent mouse x positions over the cat, to tell petting from passing by
         base = {"sit": 38, "groom": 14, "yawn": 6, "look": 10, "nap": 8, "walk": 24}
         self.personality = {k: v * random.uniform(0.6, 1.5) for k, v in base.items()}
         self.sit(random.uniform(2, 5) + index * random.uniform(2, 6))   # and they don't start in step
@@ -534,7 +550,7 @@ class Cat:
 
     def busy(self):
         a = self.action
-        return a and a["kind"] in ("together", "mood", "drag", "eat", "drink")
+        return a and a["kind"] in ("together", "mood", "drag", "eat", "drink", "petted")
 
     def sit(self, seconds):
         self.do("sit", ["sit"], 1000, seconds)
@@ -564,7 +580,10 @@ class Cat:
             frame = "blink"
         if a["kind"] == "sit" and frame == "sit_s" and (now % 4.7) < 0.18:
             frame = "blink_s"
-        self.show(frame, a.get("mark"))
+        mark = a.get("mark")
+        if isinstance(mark, (list, tuple)):
+            mark = mark[i % len(mark)]
+        self.show(frame, mark)
         moved = False
         if a["target"] is not None and not self.drag:
             step = a["speed"] * FRAME_MS / 1000
@@ -880,6 +899,52 @@ class Cat:
         frames = {"thinking": ["think"], "talking": ["talk", "talk2"], "worried": ["worried"],
                   "celebrate": ["wave1", "wave2"]}[mood]
         self.do("mood", frames, 260 if mood != "thinking" else 1000, 1.2, mark=MARKS.get(mood))
+
+    # ---------- being petted
+
+    def on_hover(self, e):
+        """Stroking: the mouse goes back and forth over the cat (no button held) a couple of times."""
+        if self.press and self.press[4]:
+            return
+        now = time.time()
+        self.stroke = [p for p in self.stroke if now - p[0] < 1.2] + [(now, e.x_root, e.y_root)]
+        a = self.action
+        if a and a["kind"] == "petted":       # still being petted: keep enjoying it
+            a["until"] = max(a["until"] or 0, now + 1.4)
+            return
+        turns, path, last = 0, 0.0, 0
+        for (_, x0, y0), (_, x1, y1) in zip(self.stroke, self.stroke[1:]):
+            dx = x1 - x0
+            path += abs(dx) + abs(y1 - y0) * 0.5
+            if abs(dx) >= 3:
+                d = 1 if dx > 0 else -1
+                if last and d != last:
+                    turns += 1
+                last = d
+        if turns >= 2 and path >= 45 * self.app.scale:
+            self.petted(e.x_root)
+
+    def petted(self, hand_x):
+        """Leans its head into your hand, eyes closed, hearts over its head. A sleeping cat stays asleep."""
+        a = self.action
+        hearts = ["hearts1", "hearts2"]
+        if a and a["kind"] == "drag":
+            return
+        if a and any(f.startswith("sleep") for f in a["frames"]):
+            a["mark"] = hearts                 # purrs in its sleep
+            a["until"] = max(a["until"] or 0, time.time() + 2.0)
+            return
+        facing = 1 if hand_x > self.centre() else -1
+        frames = ["rub1", "rub2"] if "rub1" in self.anchors else ["blink"]
+        self.do("petted", frames, 520, 2.2, facing=facing, mark=hearts, then=self.after_petting)
+        self.stroke = []
+
+    def after_petting(self):
+        """A happy cat sometimes rolls over and shows its belly."""
+        if self.pets.can_play() and random.random() < 0.35:
+            self.do("roll", ["roll1", "roll2", "roll1"], 500, 1.6)
+        else:
+            self.do("sit", ["blink", "sit"], 700, random.uniform(2, 4))
 
     def mood_changed(self, mood):
         if self.busy() and self.action["kind"] != "mood":
