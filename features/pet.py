@@ -45,6 +45,7 @@ SIT_HEIGHT = 92           # an adult sitting cat is about this tall on screen, b
 CALM_IDLE = 45            # seconds without input before the cats feel unobserved
 AWAY_IDLE = 4 * 60        # ... and before they settle down for a long nap together
 HAT_WIDTH = 3.2         # an accessory's width, in ear-base spacings
+MELT_AFTER = 5.0       # seconds of petting before a cat melts down and lies in front of you
 TOY_SIZE = 1.6         # toys drawn this much bigger than true scale, so they read next to the cats
 MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
 
@@ -909,8 +910,10 @@ class Cat:
         now = time.time()
         self.stroke = [p for p in self.stroke if now - p[0] < 1.2] + [(now, e.x_root, e.y_root)]
         a = self.action
-        if a and a["kind"] == "petted":       # still being petted: keep enjoying it
+        if a and a.get("petting"):           # still being petted: keep enjoying it
             a["until"] = max(a["until"] or 0, now + 1.4)
+            if a["kind"] == "petted" and now - a["petting"] > MELT_AFTER and "sleep" not in a["frames"]:
+                self.melt()
             return
         turns, path, last = 0, 0.0, 0
         for (_, x0, y0), (_, x1, y1) in zip(self.stroke, self.stroke[1:]):
@@ -925,23 +928,41 @@ class Cat:
             self.petted(e.x_root)
 
     def petted(self, hand_x):
-        """Leans its head into your hand, eyes closed, hearts over its head. A sleeping cat stays asleep."""
+        """Being petted. Whatever it's doing in a pose of its own (lying, sleeping, eating, drinking, scratching,
+        in a bed), it carries on and just shows hearts. Otherwise it turns to you: mostly sits looking at you,
+        eyes closing with pleasure now and then; sometimes rolls over for a belly rub, or rubs against your hand."""
         a = self.action
         hearts = ["hearts1", "hearts2"]
         if a and a["kind"] == "drag":
             return
-        if a and any(f.startswith("sleep") for f in a["frames"]):
-            a["mark"] = hearts                 # purrs in its sleep
-            a["until"] = max(a["until"] or 0, time.time() + 2.0)
+        now = time.time()
+        keep = a and (a.get("elev") or a["kind"] in ("eat", "drink", "scratch", "nap", "roll") or
+                      any(f.startswith(("sleep", "eat", "drink", "scratch", "roll")) for f in a["frames"]))
+        if keep:
+            a["mark"] = hearts
+            a["until"] = max(a["until"] or 0, now + 2.0)
+            a["petting"] = now
             return
-        facing = 1 if hand_x > self.centre() else -1
-        frames = ["rub1", "rub2"] if "rub1" in self.anchors else ["blink"]
-        self.do("petted", frames, 520, 2.2, facing=facing, mark=hearts, then=self.after_petting)
+        r = random.random()
+        if r < 0.6 or not self.pets.can_play():   # looks at you, eyes half shut, a soft meow now and then
+            self.do("petted", ["sit", "blink", "sit", "sit", "blink", "talk2"], 480, 2.4, mark=hearts, then=self.after_petting)
+        elif r < 0.82:                            # rolls over: belly rub please
+            self.do("petted", ["roll1", "roll2"], 600, 2.4, mark=hearts, then=self.after_petting)
+        else:                                     # rubs its cheek against your hand
+            facing = 1 if hand_x > self.centre() else -1
+            self.do("petted", ["rub1", "rub2"], 520, 2.2, facing=facing, mark=hearts, then=self.after_petting)
+        self.action["petting"] = now
         self.stroke = []
 
+    def melt(self):
+        """Petted for a while: it melts down and lies there in front of you, eyes closed."""
+        started = self.action["petting"]
+        self.do("petted", ["sleep"], 1000, 2.5, mark=["hearts1", "hearts2"], then=self.after_petting)
+        self.action["petting"] = started
+
     def after_petting(self):
-        """A happy cat sometimes rolls over and shows its belly."""
-        if self.pets.can_play() and random.random() < 0.35:
+        """It stays a moment, content: a slow blink at you, or (now and then) a roll."""
+        if self.pets.can_play() and random.random() < 0.25:
             self.do("roll", ["roll1", "roll2", "roll1"], 500, 1.6)
         else:
             self.do("sit", ["blink", "sit"], 700, random.uniform(2, 4))
