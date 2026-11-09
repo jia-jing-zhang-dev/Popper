@@ -150,6 +150,26 @@ class PetFeature(Feature):
         self.app.settings["pet_toys"] = []
         self.app.save()
 
+    def answer_tease(self, toy):
+        """You're playing with a toy: the nearest cat drops what it's doing (naps included) and goes for it;
+        the other turns to watch, or joins in."""
+        hunters = [c for c in self.cats if c.action and c.action.get("toy") is toy]
+        if hunters:
+            return
+        free = [c for c in self.cats if not (c.action and c.action["kind"] in ("together", "mood", "drag"))]
+        if not free:
+            return
+        if self.director and self.director.running:
+            self.director.end(*self.cats)
+        free.sort(key=lambda c: abs(c.centre() - toy.cx()))
+        free[0].play(toy, rounds=2, chase=True)
+        if len(free) > 1:
+            other = free[1]
+            if random.random() < 0.4:
+                other.play(toy, rounds=1, chase=True)
+            else:
+                other.do("look", ["sit_s"], 1000, random.uniform(2, 4), facing=1 if toy.cx() > other.centre() else -1)
+
     def toy(self, kind=None):
         return next((t_ for t_ in self.toys if kind in (None, t_.kind)), None)
 
@@ -268,6 +288,8 @@ class PetFeature(Feature):
         for toy in self.toys:
             toy.ground = self.cats[0].ground - self.floor_gap()
             toy.tick(dt)
+            if toy.being_teased():
+                self.answer_tease(toy)
         self.director.tick(now)
         for c in self.cats:
             c.tick(now)
@@ -545,10 +567,23 @@ class Cat:
             return toy
         return None
 
-    def play(self, toy, rounds=1, then=None):
-        """Go up to the toy, crouch, maybe pounce, swat it away; again for a few rounds if it rolled off."""
+    def play(self, toy, rounds=1, then=None, chase=False):
+        """Go up to the toy, crouch, maybe pounce, swat it away; again for a few rounds if it rolled off.
+        While it's still moving (rolling, or in your hand) the cat runs after it and looks again."""
         if toy not in self.pets.toys:
             return then() if then else None
+        if toy.moving():
+            facing = 1 if toy.cx() > self.centre() else -1
+            near = self.x_for_nose(toy.cx() - facing * (toy.r + 20 * self.app.scale), facing, "run0")
+            if abs(near - self.x) > 12 * self.app.scale:
+                self.walk_to(near, run=True, then=lambda: self.play(toy, rounds, then, chase))
+            elif toy.drag is not None and random.random() < 0.35:   # dangled right above it: swipe at it
+                self.do("play", ["bat1", "bat2"], 160, 0.32, facing=facing, then=lambda: self.play(toy, rounds, then, chase))
+            else:   # right by it but it's still moving: watch it, crouched, then look again
+                self.do("play", ["crouch"], 1000, 0.35, facing=facing, then=lambda: self.play(toy, rounds, then, chase))
+            self.action["kind"] = "play"
+            self.action["toy"] = toy
+            return
         facing = -1 if self.centre() > toy.cx() else 1
         gap = toy.r + 10 * self.app.scale
         stand = self.x_for_nose(toy.cx() + (gap if facing < 0 else -gap), facing)
@@ -559,21 +594,26 @@ class Cat:
 
         def at_toy():
             self.facing = 1 if toy.cx() > self.centre() else -1
-            self.do("play", ["crouch"], 1000, random.uniform(0.6, 1.6), facing=self.facing, then=leap if pounce else swat)
+            self.do("play", ["crouch"], 1000, random.uniform(0.6, 1.6) if not chase else random.uniform(0.3, 0.8),
+                    facing=self.facing, then=leap if pounce else swat)
+            self.action["toy"] = toy
 
         def leap():
             self.hop(0.22, 60 * self.app.scale * self.facing)
             self.do("play", ["pounce"], 1000, 0.75, facing=self.facing, then=swat)
+            self.action["toy"] = toy
 
         def swat():
             self.do("play", ["bat1", "bat2"], 160, 0.32, facing=self.facing, then=hit)
+            self.action["toy"] = toy
 
         def hit():
             if toy in self.pets.toys and abs(toy.cx() - self.nose_x("bat2")) < toy.r + 40 * self.app.scale:
                 toy.kick(self.facing * random.uniform(260, 560) * self.app.scale, -random.uniform(0, 260) * self.app.scale)
             if rounds > 1 and toy in self.pets.toys:
                 self.do("play", ["crouch"], 1000, random.uniform(0.3, 0.8), facing=self.facing,
-                        then=lambda: self.play(toy, rounds - 1, then))
+                        then=lambda: self.play(toy, rounds - 1, then, chase))
+                self.action["toy"] = toy
             elif then:
                 then()
             else:
@@ -582,8 +622,10 @@ class Cat:
         if abs(stand - self.x) < 4:
             at_toy()
         else:
-            self.walk_to(stand, then=at_toy, run=far or toy.moving())
+            self.walk_to(stand, then=at_toy, run=far or chase)
             self.action["kind"] = "play"
+        if self.action:
+            self.action["toy"] = toy
 
     def show_mood(self, mood):
         frames = {"thinking": ["think"], "talking": ["talk", "talk2"], "worried": ["worried"],

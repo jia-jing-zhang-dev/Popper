@@ -56,6 +56,7 @@ class Toy:
         self.angle = 0.0
         self.mirror = False
         self.last_hit = time.time()
+        self.teased = 0.0            # when the owner last moved it with the mouse
         self.drag = None
         self.label.bind("<ButtonPress-1>", self.on_press)
         self.label.bind("<B1-Motion>", self.on_motion)
@@ -92,6 +93,10 @@ class Toy:
 
     def moving(self):
         return abs(self.vx) > 5 or self.y < self.ground - 1 or self.drag is not None
+
+    def being_teased(self, seconds=2.0):
+        """The owner is waving it about (or just threw it)."""
+        return self.drag is not None or time.time() - self.teased < seconds
 
     def recently_moved(self, seconds=4):
         return self.moving() or time.time() - self.last_hit < seconds
@@ -145,7 +150,7 @@ class Toy:
         self.y = min(self.ground, y0 + e.y_root - sy)
         trail.append((time.time(), e.x_root, e.y_root))
         del trail[:-6]
-        self.last_hit = time.time()
+        self.last_hit = self.teased = time.time()
         self.place()
 
     def on_release(self, e):
@@ -158,3 +163,4 @@ class Toy:
             self.kick(0.0, 0.0)
         if self.y >= self.ground and self.vy > 0:
             self.vy = 0.0
+        self.teased = time.time()
