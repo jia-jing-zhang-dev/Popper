@@ -180,7 +180,7 @@ class BondStore:
 # ---------- what 泡泡 wears
 
 def wear(img, kind):
-    """Draw an accessory on 泡泡 (an RGBA image with the pet near the bottom), sitting on top of its head."""
+    """Draw an accessory on top of the head of whatever is in `img` (found from its outline)."""
     if not kind:
         return img
     box = img.getchannel("A").point(lambda a: 255 if a > 200 else 0).getbbox()
@@ -193,6 +193,13 @@ def wear(img, kind):
     mask = img.getchannel("A").crop((int(cx - w * 0.08), y0, int(cx + w * 0.08), y1)).point(lambda a: 255 if a > 200 else 0)
     head = mask.getbbox()
     top = y0 + (head[1] if head else (y1 - y0) * 0.10) + w * 0.03  # sink in a little so it sits, not floats
+    return wear_at(img, kind, cx, top, w)
+
+
+def wear_at(img, kind, cx, top, w):
+    """Draw an accessory centred at `cx`, sitting at height `top`, sized for a head about `w` wide."""
+    if not kind:
+        return img
     d = ImageDraw.Draw(img)
     lw = max(2, round(w * 0.03))
     ink = (31, 36, 48, 255)
@@ -237,19 +244,29 @@ def wear(img, kind):
     return img
 
 
-def preview(kind, size, frame=0):
-    """泡泡 wearing `kind`, on a transparent background, for the bond window."""
-    from features.pet import ASSETS
-    rgba = Image.open(os.path.join(ASSETS, f"frame_{frame:02d}.png")).convert("RGBA")
-    inner = round(size * 0.80)  # leave headroom for what it wears
-    rgba.thumbnail((inner, inner), Image.LANCZOS)
+def preview(kind, size, skin="A_adult", frame="sit"):
+    """The first cat (泡泡) wearing `kind`, on a transparent background, for the bond window."""
+    import json
+    from features.pet import ASSETS, skin_type
+    meta = json.load(open(os.path.join(ASSETS, "meta.json"), encoding="utf-8"))
+    a = meta["anchors"][skin_type(skin)][frame]
+    rgba = Image.open(os.path.join(ASSETS, skin, frame + ".webp")).convert("RGBA")
+    # crop to the whole cat, with headroom for what it wears
+    from features.pet import HAT_WIDTH
+    (hx, hy), (lx, _), (rx, _) = a["head"], a["ear_l"], a["ear_r"]
+    w = abs(lx - rx) * HAT_WIDTH
+    body = rgba.getbbox()
+    box = (max(0, body[0] - 4), max(0, round(min(body[1], hy - w * 0.6)) - 4), body[2] + 4, body[3])
+    wear_at(rgba, kind, hx, hy + w * 0.04, w)
+    rgba = rgba.crop(box)
+    rgba.thumbnail((size, size), Image.LANCZOS)
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     canvas.alpha_composite(rgba, ((size - rgba.width) // 2, size - rgba.height))
-    return wear(canvas, kind)
+    return canvas
 
 
-def tk_preview(kind, size, bg):
-    img = preview(kind, size)
+def tk_preview(kind, size, bg, skin="A_adult"):
+    img = preview(kind, size, skin)
     base = Image.new("RGBA", img.size, bg)
     base.alpha_composite(img)
     return ImageTk.PhotoImage(base.convert("RGB"))
@@ -290,7 +307,7 @@ class BondWindow:
 
         head = tk.Frame(self.body, bg=BG)
         head.pack(fill="x")
-        img = tk_preview(feat.hat(), int(110 * s), hex_rgba(BG))
+        img = tk_preview(feat.hat(), int(110 * s), hex_rgba(BG), feat.skin())
         self.images.append(img)
         tk.Label(head, image=img, bg=BG).pack(side="left")
         right = tk.Frame(head, bg=BG)
@@ -340,7 +357,7 @@ class BondWindow:
             cell.pack(side="left", padx=(0, int(6 * s)))
             inner = tk.Frame(cell, bg=PANEL)
             inner.pack()
-            pic = tk_preview(name if open_ else None, int(56 * s), hex_rgba(PANEL))
+            pic = tk_preview(name if open_ else None, int(56 * s), hex_rgba(PANEL), feat.skin())
             self.images.append(pic)
             label = tk.Label(inner, image=pic, bg=PANEL, cursor="hand2" if open_ else "")
             label.pack()
@@ -382,7 +399,7 @@ class LevelUp:
         f = lambda size: app.font("Microsoft YaHei UI", size)
         hat = app.feature("bond").hat()
         pic = tk.Label(body, bg=PANEL)
-        pic.img = tk_preview(hat, int(100 * s), hex_rgba(PANEL))  # nothing else keeps this card object alive
+        pic.img = tk_preview(hat, int(100 * s), hex_rgba(PANEL), app.feature("bond").skin())  # nothing else keeps this card object alive
         pic.configure(image=pic.img)
         pic.pack()
         tk.Label(body, text=t("bond_welcome" if first else "bond_levelup", level=level), bg=PANEL, fg=HEART,

@@ -1,10 +1,18 @@
-"""Desktop pet: 泡泡 stands on the desktop, breathes, blinks, hops and wanders, and the card is its speech bubble.
+"""Desktop pets: two realistic cats live along the bottom of the screen; the first one, 泡泡, carries the card.
 
-The pet is a borderless window whose background colour is made transparent, so only the bubble shows.
-It bobs gently, hops when clicked or when a word is looked up, and now and then walks a little way
-along the screen. Dragging it (or the card) moves both; a click does what a click on the card does.
+Each cat is a borderless window whose background colour is made transparent. The frames are renders of a
+rigged 3D cat (assets/cats, see CREDITS.md there): 8 coats x 4 body types, 29 poses each. Front-facing poses
+are for sitting about and showing 泡泡's moods; side-facing ones (they face left, and are mirrored to face
+right) are for walking, running and the two cats' interactions.
+
+How they behave: each cat runs one action at a time (sit, groom itself, yawn, nap, look around, walk, run).
+When an action ends it picks the next at random, weighted by what's going on: while you're working they stay
+calm and close to home; when you've left the keyboard for a while they wander, play and get together (touch
+noses, groom each other, chase, nap cuddled up). 泡泡 also shows the card's mood (thinking, talking,
+worried, celebrating, sleepy) and stays near its spot so the card doesn't run away from you.
 """
 
+import json
 import math
 import os
 import random
@@ -12,52 +20,77 @@ import sys
 import time
 import tkinter as tk
 
-from PIL import Image, ImageDraw, ImageFont, ImageTk
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageTk
+
+from focus import idle_seconds
+from i18n import t
 
 from .base import Feature
 
-# Frames of FluffyBlob by Jaqueline Martin (CC0), see assets/pet/CREDITS.md
-ASSETS = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                      "assets", "pet")
-MOODS = {                     # mood -> (frame numbers, ms per frame)
-    "happy": ([0, 1, 0, 3], 700),
-    "blink": ([2], 160),
-    "thinking": ([4, 11], 600),
-    "talking": ([10, 13], 300),
-    "worried": ([14, 16], 700),
-    "celebrate": ([2, 5, 6, 5], 220),
-    "sleepy": ([15], 1000),
-}
-HOP = [7, 8, 10, 13, 9, 7]    # squash, rise, stretch, airborne, fall, land
-MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
+ROOT = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ASSETS = os.path.join(ROOT, "assets", "cats")
+COATS = "ABCDEFGH"
+TYPES = ("adult", "kitten", "slim", "fluffy")
+DEFAULT_SKINS = ["A_adult", "D_kitten"]
 
-KEY = "#010203"           # this colour is see-through in the pet window
+KEY = "#010203"           # this colour is see-through in the pet windows
 KEY_RGB = (1, 2, 3)
 FRAME_MS = 60
-WANDER_MS = (3 * 60_000, 8 * 60_000)
+SIT_HEIGHT = 92           # an adult sitting cat is about this tall on screen, before display scaling
+CALM_IDLE = 45            # seconds without input before the cats feel unobserved
+AWAY_IDLE = 4 * 60        # ... and before they settle down for a long nap together
+HAT_WIDTH = 3.2         # an accessory's width, in ear-base spacings
+MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
+
+WALK = [f"walk{i}" for i in range(6)]
+RUN = [f"run{i}" for i in range(4)]
 
 
-def pet_image(frame, size, mark=None, hat=None):
-    """One frame on the see-through colour. Only nearly opaque pixels are kept: soft edges and the
-    painted shadow would blend with the see-through colour into a dark fringe. `hat` is what it wears
-    (bond.py); then the pet is drawn a little smaller to leave room on top."""
-    rgba = Image.open(os.path.join(ASSETS, f"frame_{frame:02d}.png")).convert("RGBA")
-    inner = round(size * 0.80) if hat else size
-    rgba.thumbnail((inner, inner), Image.LANCZOS)
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    canvas.alpha_composite(rgba, ((size - rgba.width) // 2, size - rgba.height))
-    if hat:
-        from bond import wear
-        wear(canvas, hat)
+def load_meta():
+    try:
+        with open(os.path.join(ASSETS, "meta.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def skin_type(skin):
+    return skin.split("_", 1)[1]
+
+
+def frame_image(skin, frame, scale, mirror=False, hat=None, anchor=None, mark=None):
+    """One frame as a Tk image on the see-through colour, `scale` times the stored size."""
+    rgba = Image.open(os.path.join(ASSETS, skin, frame + ".webp")).convert("RGBA")
+    w, h = round(rgba.width * scale), round(rgba.height * scale)
+    rgba = rgba.resize((w, h), Image.LANCZOS)
+    if hat and anchor:
+        from bond import wear_at
+        (hx, hy), (lx, _), (rx, _) = anchor["head"], anchor["ear_l"], anchor["ear_r"]
+        width = max(abs(lx - rx), 1) * scale * HAT_WIDTH   # the anchors are the ear bases: the head is wider
+        wear_at(rgba, hat, hx * scale, hy * scale + width * 0.04, width)
+    if mirror:
+        rgba = ImageOps.mirror(rgba)
     if mark:
-        d = ImageDraw.Draw(canvas)
-        font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", max(12, size // 4))
-        d.text((size * 0.70, size * 0.02), mark, font=font, fill=(255, 255, 255, 255),
-               stroke_width=max(2, size // 40), stroke_fill=(31, 36, 48, 255))
-    base = Image.new("RGB", canvas.size, KEY_RGB)
-    mask = canvas.getchannel("A").point(lambda a: 255 if a > 200 else 0)
-    base.paste(canvas.convert("RGB"), mask=mask)
+        d = ImageDraw.Draw(rgba)
+        font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", max(12, h // 7))
+        x = w * (0.30 if mirror else 0.62) if anchor is None else (anchor["head"][0] * scale + h * 0.12)
+        d.text((x, h * 0.02), mark, font=font, fill=(255, 255, 255, 255),
+               stroke_width=max(2, h // 70), stroke_fill=(31, 36, 48, 255))
+    # keep fairly opaque pixels only: soft fur edges would blend with the see-through colour into a fringe
+    base = Image.new("RGB", rgba.size, KEY_RGB)
+    base.paste(rgba.convert("RGB"), mask=rgba.getchannel("A").point(lambda a: 255 if a > 110 else 0))
     return ImageTk.PhotoImage(base)
+
+
+def face_icon(skin="A_adult", size=256):
+    """The cat's face, square, for the desktop icon."""
+    meta = load_meta()
+    im = Image.open(os.path.join(ASSETS, skin, "sit.webp")).convert("RGBA")
+    a = meta["anchors"][skin_type(skin)]["sit"]
+    (hx, hy), (lx, _), (rx, _) = a["head"], a["ear_l"], a["ear_r"]
+    r = abs(lx - rx) * 1.25
+    box = (round(hx - r), round(hy - r * 0.35), round(hx + r), round(hy + r * 1.65))
+    return im.crop(box).resize((size, size), Image.LANCZOS)
 
 
 class PetFeature(Feature):
@@ -65,168 +98,340 @@ class PetFeature(Feature):
     name_key = "feat_pet"
 
     def start(self):
-        self.win = None
-        self.every_frame = None
+        self.cats = []
+        self.meta = load_meta()
+        self.director = None
         self.app.root.after(300, self.sync)
         self.app.root.after(1000, self.sync_loop)
+
+    def menu_items(self, menu):
+        menu.add_command(label=t("menu_cats"), command=self.open_skins)
+
+    def open_skins(self):
+        from cat_skins import SkinWindow
+        self.show("skins", lambda: SkinWindow(self))
+
+    # ---------- settings
+
+    def skins(self):
+        s = list(self.app.settings.get("pet_skins") or DEFAULT_SKINS)
+        s += DEFAULT_SKINS[len(s):]
+        return s[:2]
+
+    def two(self):
+        return self.app.settings.get("pet_two", True)
+
+    def set_skin(self, i, skin):
+        skins = self.skins()
+        skins[i] = skin
+        self.app.settings["pet_skins"] = skins
+        self.app.save()
+        self.rebuild()
+
+    def set_two(self, on):
+        self.app.settings["pet_two"] = bool(on)
+        self.app.save()
+        self.rebuild()
 
     # ---------- on / off
 
     def sync_loop(self):
         self.sync()
-        if self.win and self.win.style != self.win.wanted_style():
-            self.win.restyle()
+        if self.cats and self.cats[0].style != self.cats[0].wanted_style():
+            self.cats[0].restyle()
         self.app.root.after(1000, self.sync_loop)
 
     def sync(self):
-        if self.on and not self.win:
-            self.win = PetWindow(self.app)
-        elif not self.on and self.win:
-            self.win.close()
-            self.win = None
+        want = self.on and self.meta is not None
+        if want and not self.cats:
+            self.build()
+        elif not want and self.cats:
+            self.teardown()
+
+    def build(self):
+        skins = self.skins()
+        self.cats = [Cat(self, 0, skins[0])]
+        if self.two():
+            self.cats.append(Cat(self, 1, skins[1]))
+        self.director = Director(self)
+        self.cats[0].attach_card()
+        self.tick()
+
+    def teardown(self):
+        self.cats[0].detach_card()
+        for c in self.cats:
+            c.top.destroy()
+        self.cats = []
+        self.director = None
+
+    def rebuild(self):
+        if self.cats:
+            self.teardown()
+        self.sync()
+
+    def tick(self):
+        if not self.cats:
+            return
+        now = time.time()
+        self.director.tick(now)
+        for c in self.cats:
+            c.tick(now)
+        self.app.root.after(FRAME_MS, self.tick)
+
+    # ---------- what's going on around the cats
+
+    def idle(self):
+        try:
+            return idle_seconds()
+        except OSError:
+            return 0
+
+    def drowsy(self):
+        """Late at night, or Popper paused: the cats would rather sleep."""
+        hour = time.localtime().tm_hour
+        return hour >= 23 or hour < 7 or not self.app.settings.get("listening", True)
 
 
-class PetWindow:
-    def __init__(self, app):
-        self.app = app
+class Cat:
+    """One cat: its window, where it is, which way it faces, and what it's doing."""
+
+    def __init__(self, pets, index, skin):
+        self.pets, self.app, self.index, self.skin = pets, pets.app, index, skin
+        self.anchors = pets.meta["anchors"][skin_type(skin)]
+        cw, ch = pets.meta["canvas"]
         self.style = self.wanted_style()
-        self.size = self.pet_size()
-        self.frame = None
         self.images = {}
-        self.mood = "happy"
-        top = self.top = tk.Toplevel(app.root)
+        self.scale = self.compute_scale()
+        self.w, self.h = round(cw * self.scale), round(ch * self.scale)
+        top = self.top = tk.Toplevel(self.app.root)
         top.overrideredirect(True)
         top.attributes("-topmost", True)
         top.configure(bg=KEY)
         top.attributes("-transparentcolor", KEY)
         self.label = tk.Label(top, bg=KEY, bd=0, cursor="hand2")
         self.label.pack()
-
         sw, sh = top.winfo_screenwidth(), top.winfo_screenheight()
-        s = app.settings
-        self.x = s.get("pet_x") if s.get("pet_x") is not None else sw - self.size - 60
-        self.y = s.get("pet_y") if s.get("pet_y") is not None else sh - self.size - 70
-        self.clamp()
-        self.phase = 0.0
-        self.hop_frames = 0       # frames left in a hop
-        self.walk_to = None
+        s = self.app.settings
+        key = "pet_x" if index == 0 else "pet2_x"
+        self.home = s.get(key) if s.get(key) is not None else sw - self.w - 60 - index * self.w
+        self.x = float(self.home)
+        self.ground = (s.get("pet_ground") if s.get("pet_ground") is not None else sh - 50)
+        self.facing = -1          # -1 faces left (as rendered), +1 faces right (mirrored)
+        self.frame = None
+        self.shown = None
+        self.action = None
+        self.hop_t = 0
         self.drag = None
-
+        self.press = None
+        self.clamp()
         self.label.bind("<ButtonPress-1>", self.on_press)
         self.label.bind("<B1-Motion>", self.on_motion)
         self.label.bind("<ButtonRelease-1>", self.on_release)
-        self.label.bind("<Button-3>", app.show_menu)
-
-        app.anchor = self.card_anchor
-        app.card_drag = self.drag_from_card
-        app.mood_listeners.append(self.set_mood)
-        app.hop_listeners.append(self.hop)
-        app.avatar.pack_forget()  # the pet is the face now; no second one inside the card
-        self.set_mood(app.mood())
-        self.tick()
-        self.schedule_wander()
-        app.place_window()
-
-    def close(self):
-        app = self.app
-        app.anchor = app.card_drag = None
-        app.mood_listeners.remove(self.set_mood)
-        app.hop_listeners.remove(self.hop)
-        app.avatar.pack(side="left", padx=(0, 8), before=app.word_lbl)
-        self.top.destroy()
-        app.place_window()
+        self.label.bind("<Button-3>", self.app.show_menu)
+        self.sit(random.uniform(2, 5))
+        self.place()
 
     # ---------- looks
 
     def wanted_style(self):
-        """(accessory, size factor) from 泡泡's bond: it grows a little and wears what it unlocked."""
+        """(accessory, size factor): only 泡泡 wears what it unlocked with the bond, and grows a little."""
+        if self.index:
+            return None, 1.0
         try:
             return self.app.feature("bond").pet_style()
         except StopIteration:
             return None, 1.0
 
-    def pet_size(self):
-        return round(84 * self.app.scale * self.style[1] / (0.80 if self.style[0] else 1))
+    def compute_scale(self):
+        ch = self.pets.meta["canvas"][1]
+        sit = self.pets.meta["anchors"]["adult"]["sit"]
+        adult_sit_h = ch - sit["head"][1] + abs(sit["ear_l"][0] - sit["ear_r"][0]) * 0.6
+        return SIT_HEIGHT * self.app.scale * self.style[1] / max(adult_sit_h, 1)
 
     def restyle(self):
-        """Redraw with a new accessory or size, keeping the feet where they were."""
-        bottom = self.y + self.size
         self.style = self.wanted_style()
-        self.size = self.pet_size()
-        self.y = bottom - self.size
-        self.images, self.frame = {}, None
-        self.clamp()
-        self.show_frame()
+        self.scale = self.compute_scale()
+        cw, ch = self.pets.meta["canvas"]
+        self.w, self.h = round(cw * self.scale), round(ch * self.scale)
+        self.images = {}
+        self.shown = None
+        self.place()
         self.app.place_window()
 
-    def set_mood(self, mood):
-        self.mood = mood
-        self.show_frame()
+    def image(self, frame, mirror, mark):
+        key = (frame, mirror, mark)
+        if key not in self.images:
+            self.images[key] = frame_image(self.skin, frame, self.scale, mirror, self.style[0],
+                                           self.anchors.get(frame), mark)
+        return self.images[key]
 
-    def show_frame(self):
-        """Pick the frame for the current mood (or the hop in progress) and show it if it changed."""
-        if self.hop_frames:
-            frame, mark = HOP[min(len(HOP) - 1, (12 - self.hop_frames) // 2)], None
-        else:
-            frames, ms = MOODS.get(self.mood, MOODS["happy"])
-            frame, mark = frames[int(time.time() * 1000 / ms) % len(frames)], MARKS.get(self.mood)
-        if (frame, mark) == self.frame:
-            return
-        self.frame = (frame, mark)
-        if self.frame not in self.images:
-            self.images[self.frame] = pet_image(frame, self.size, mark, self.style[0])
-        self.label.configure(image=self.images[self.frame])
+    def show(self, frame, mark=None):
+        side = self.anchors.get(frame, {}).get("side", False)
+        mirror = side and self.facing > 0
+        key = (frame, mirror, mark)
+        if key != self.shown:
+            self.shown = key
+            self.label.configure(image=self.image(frame, mirror, mark))
+
+    # ---------- position
 
     def clamp(self):
-        sw, sh = self.top.winfo_screenwidth(), self.top.winfo_screenheight()
-        self.x = max(0, min(self.x, sw - self.size))
-        self.y = max(40, min(self.y, sh - self.size))
+        sw = self.top.winfo_screenwidth()
+        self.x = max(-self.w * 0.25, min(self.x, sw - self.w * 0.75))
 
-    def tick(self):
-        """One animation frame: breathe, hop, walk."""
-        if not self.top.winfo_exists():
-            return
-        self.phase += 0.12 if self.mood != "sleepy" else 0.05
+    def place(self):
         lift = 0
-        if self.hop_frames:
-            k = self.hop_frames / 12
-            lift = round(math.sin(math.pi * k) * self.size * 0.3)
-            self.hop_frames -= 1
-        if self.walk_to is not None and not self.drag:
-            step = max(-4, min(4, self.walk_to - self.x))
-            self.x += step
-            if not self.hop_frames:
-                self.hop_frames = 12
-            if abs(self.walk_to - self.x) < 1:
-                self.walk_to = None
-                self.save()
-            self.app.place_window()
-        self.show_frame()
-        bob = round(math.sin(self.phase) * self.size * 0.03)
-        self.top.geometry(f"+{int(self.x)}+{int(self.y + bob - lift)}")
-        self.top.after(FRAME_MS, self.tick)
+        if self.hop_t:
+            k = self.hop_t / 12
+            lift = round(math.sin(math.pi * k) * self.h * 0.12)
+        self.top.geometry(f"{self.w}x{self.h}+{int(self.x)}+{int(self.ground - self.h - lift)}")
+
+    def centre(self):
+        return self.x + self.w / 2
+
+    def head_xy(self, frame="sit"):
+        a = self.anchors[frame]["head"]
+        return self.x + a[0] * self.scale, self.ground - self.h + a[1] * self.scale
+
+    # ---------- actions: (frames, ms per frame, seconds) and optional movement
+
+    def do(self, kind, frames, ms, seconds=None, target=None, speed=0.0, facing=None, mark=None, then=None):
+        self.action = {"kind": kind, "frames": frames, "ms": ms, "start": time.time(),
+                       "until": time.time() + seconds if seconds else None, "target": target,
+                       "speed": speed, "mark": mark, "then": then}
+        if facing:
+            self.facing = facing
+        elif target is not None:
+            self.facing = 1 if target > self.x else -1
+
+    def busy(self):
+        a = self.action
+        return a and a["kind"] in ("together", "mood", "drag")
+
+    def sit(self, seconds):
+        self.do("sit", ["sit"], 1000, seconds)
+
+    def walk_to(self, x, then=None, run=False):
+        sw = self.top.winfo_screenwidth()
+        x = max(0, min(x, sw - self.w))
+        speed = (150 if run else 48) * self.app.scale * (0.8 if skin_type(self.skin) == "kitten" else 1.0)
+        self.do("move", RUN if run else WALK, 80 if run else 120, target=x, speed=speed, then=then)
 
     def hop(self):
-        if not self.hop_frames:
-            self.hop_frames = 12
+        if not self.hop_t:
+            self.hop_t = 12
 
-    def schedule_wander(self):
-        self.top.after(random.randint(*WANDER_MS), self.wander)
+    def tick(self, now):
+        a = self.action
+        if a is None:
+            self.choose()
+            a = self.action
+        frames = a["frames"]
+        i = int((now - a["start"]) * 1000 / a["ms"]) % len(frames)
+        frame = frames[i]
+        # blink now and then while sitting about
+        if a["kind"] == "sit" and frame == "sit" and (now % 5.3) < 0.18:
+            frame = "blink"
+        if a["kind"] == "sit" and frame == "sit_s" and (now % 4.7) < 0.18:
+            frame = "blink_s"
+        self.show(frame, a.get("mark"))
+        moved = False
+        if a["target"] is not None and not self.drag:
+            step = a["speed"] * FRAME_MS / 1000
+            d = a["target"] - self.x
+            if abs(d) <= step:
+                self.x = a["target"]
+                a["target"] = None
+                self.finish()
+            else:
+                self.x += step if d > 0 else -step
+            moved = True
+        elif a["until"] and now >= a["until"]:
+            self.finish()
+        if self.hop_t:
+            self.hop_t -= 1
+            moved = True
+        if moved:
+            self.place()
+            if self.index == 0:
+                self.app.place_window()
 
-    def wander(self):
-        if not self.top.winfo_exists():
+    def finish(self):
+        then = self.action.get("then") if self.action else None
+        self.action = None
+        if then:
+            then()
+
+    def choose(self):
+        """Pick what to do next, on its own."""
+        if self.index == 0:
+            mood = self.app.mood()
+            if mood in ("thinking", "talking", "worried", "celebrate"):
+                self.show_mood(mood)
+                return
+        pets = self.pets
+        idle = pets.idle()
+        if pets.drowsy() or idle > AWAY_IDLE and random.random() < 0.5:
+            self.do("nap", ["sleep"], 1000, random.uniform(60, 240))
             return
-        if not self.drag and self.mood in ("happy", "blink"):
-            self.walk_to = self.x + random.choice((-1, 1)) * random.randint(60, 220)
-            sw = self.top.winfo_screenwidth()
-            self.walk_to = max(0, min(self.walk_to, sw - self.size))
-        self.schedule_wander()
+        unobserved = idle > CALM_IDLE
+        roam = 600 if unobserved else 160
+        if self.index == 0:
+            roam = 260 if unobserved else 60    # 泡泡 carries the card: stay near where you put it
+        r = random.random()
+        if r < 0.38:
+            self.sit(random.uniform(4, 12))
+        elif r < 0.52:
+            self.do("groom", ["lick1", "lick2"], 420, random.uniform(3, 7))
+        elif r < 0.58:
+            self.do("yawn", ["yawn"], 1000, 1.6)
+        elif r < 0.68:
+            self.facing = random.choice((-1, 1))
+            self.do("look", ["sit_s"], 1000, random.uniform(3, 7))
+        elif r < 0.76 and unobserved:
+            self.do("nap", ["sleep"], 1000, random.uniform(20, 90))
+        else:
+            x = self.home + random.uniform(-roam, roam)
+            self.walk_to(x, run=unobserved and random.random() < 0.15)
 
-    # ---------- the card rides along
+    def show_mood(self, mood):
+        frames = {"thinking": ["think"], "talking": ["talk", "talk2"], "worried": ["worried"],
+                  "celebrate": ["wave1", "wave2"]}[mood]
+        self.do("mood", frames, 260 if mood != "thinking" else 1000, 1.2, mark=MARKS.get(mood))
+
+    def mood_changed(self, mood):
+        if self.busy() and self.action["kind"] != "mood":
+            return
+        if mood in ("thinking", "talking", "worried", "celebrate"):
+            self.show_mood(mood)
+        elif self.action and self.action["kind"] == "mood":
+            self.sit(random.uniform(2, 5))
+
+    # ---------- the card rides along with 泡泡
+
+    def attach_card(self):
+        app = self.app
+        app.anchor = self.card_anchor
+        app.card_drag = self.drag_from_card
+        app.mood_listeners.append(self.mood_changed)
+        app.hop_listeners.append(self.hop)
+        app.avatar.pack_forget()  # the cat is the face now; no second one inside the card
+        app.place_window()
+
+    def detach_card(self):
+        app = self.app
+        app.anchor = app.card_drag = None
+        if self.mood_changed in app.mood_listeners:
+            app.mood_listeners.remove(self.mood_changed)
+        if self.hop in app.hop_listeners:
+            app.hop_listeners.remove(self.hop)
+        app.avatar.pack(side="left", padx=(0, 8), before=app.word_lbl)
+        app.place_window()
 
     def card_anchor(self):
-        """The card's bottom-left corner: just above the pet's head."""
-        return int(self.x - self.size * 0.2), int(self.y - self.size * 0.12)
+        """The card's bottom-left corner: just above the sitting cat's head, so it doesn't jump with each pose."""
+        hx, hy = self.head_xy("sit")
+        return int(hx - 40 * self.app.scale), int(hy - 18 * self.app.scale)
 
     def drag_from_card(self, dx, dy, done):
         if done:
@@ -234,37 +439,172 @@ class PetWindow:
             self.save()
             return
         if not self.drag:
-            self.drag = (self.x, self.y)
-        self.x, self.y = self.drag[0] + dx, self.drag[1] + dy
+            self.drag = (self.x, self.ground)
+            self.do("drag", ["sit"], 1000)
+        self.x, self.ground = self.drag[0] + dx, self.drag[1] + dy
         self.clamp()
-        self.walk_to = None
+        self.place()
         self.app.place_window()
 
-    # ---------- mouse on the pet
+    # ---------- mouse on the cat
 
     def on_press(self, e):
-        self.press = (e.x_root, e.y_root, self.x, self.y, False)
+        self.press = (e.x_root, e.y_root, self.x, self.ground, False)
 
     def on_motion(self, e):
-        sx, sy, x0, y0, moved = self.press
+        sx, sy, x0, g0, moved = self.press
         dx, dy = e.x_root - sx, e.y_root - sy
         if moved or abs(dx) + abs(dy) > 4:
-            self.press = (sx, sy, x0, y0, True)
-            self.drag = (x0, y0)
-            self.x, self.y = x0 + dx, y0 + dy
+            if not moved:
+                self.do("drag", ["sit"], 1000)
+            self.press = (sx, sy, x0, g0, True)
+            self.drag = (x0, g0)
+            self.x, self.ground = x0 + dx, g0 + dy
             self.clamp()
-            self.walk_to = None
-            self.app.place_window()
+            self.place()
+            if self.index == 0:
+                self.app.place_window()
 
     def on_release(self, e):
-        moved = self.press[4]
+        moved = self.press and self.press[4]
         self.drag = None
         if moved:
             self.save()
-        else:
+            self.sit(random.uniform(2, 4))
+        elif self.index == 0:
             self.hop()
             self.app.card_clicked()
+        else:
+            self.hop()
+            self.pets.director.come_over()   # the other cat goes to say hello
 
     def save(self):
-        self.app.settings["pet_x"], self.app.settings["pet_y"] = int(self.x), int(self.y)
+        s = self.app.settings
+        self.home = self.x
+        s["pet_x" if self.index == 0 else "pet2_x"] = int(self.x)
+        s["pet_ground"] = int(self.ground)
+        for c in self.pets.cats:      # both cats live on the same floor
+            c.ground = self.ground
+            c.place()
         self.app.save()
+
+
+class Director:
+    """Now and then, brings the two cats together: touching noses, grooming, a chase, a nap side by side."""
+
+    def __init__(self, pets):
+        self.pets = pets
+        self.next_time = time.time() + random.uniform(40, 90)
+        self.running = None
+        self.token = 0
+
+    def begin(self, kind):
+        self.running = kind
+        self.token += 1
+
+    def later(self, ms, fn):
+        """Run fn after ms, unless another interaction (or none) has taken over by then."""
+        token = self.token
+        self.pets.app.root.after(int(ms), lambda: self.running and token == self.token and self.pets.director is self and fn())
+
+    def pair(self):
+        cats = self.pets.cats
+        return (cats[0], cats[1]) if len(cats) == 2 else None
+
+    def tick(self, now):
+        p = self.pair()
+        if not p or self.running or now < self.next_time:
+            return
+        a, b = p
+        if a.busy() or b.busy():
+            return
+        idle = self.pets.idle()
+        unobserved = idle > CALM_IDLE
+        self.next_time = now + (random.uniform(25, 70) if unobserved else random.uniform(120, 300))
+        if self.pets.drowsy() or idle > AWAY_IDLE:
+            self.cuddle(a, b)
+            return
+        if not unobserved and random.random() < 0.6:
+            return   # while you're working they mostly leave each other alone
+        choice = random.choices(["boop", "groom", "chase", "cuddle"], [4, 3, 2 if unobserved else 0, 1])[0]
+        getattr(self, choice)(a, b) if choice != "groom" else self.groom(*random.sample((a, b), 2))
+
+    def end(self, *cats):
+        self.running = None
+        self.token += 1
+        for c in cats:
+            c.sit(random.uniform(2, 6))
+
+    def meet(self, mover, other, then, gap=0.62, run=False):
+        """Walk `mover` up beside `other`, on whichever side it already is."""
+        side = -1 if mover.centre() < other.centre() else 1
+        target = other.x + side * other.w * gap
+        other.do("together", ["sit_s"], 1000, facing=side)
+        mover.walk_to(target, then=then, run=run)
+        mover.action["kind"] = "together"
+
+    def boop(self, a, b):
+        self.begin("boop")
+        mover, still = random.sample((a, b), 2)
+
+        def touch():
+            mover.facing = -still.facing
+            mover.do("together", ["sit_s", "boop"], 900, facing=mover.facing)
+            still.do("together", ["sit_s", "boop"], 900, facing=still.facing)
+            self.later(2700, lambda: self.end(a, b))
+        self.meet(mover, still, touch)
+
+    def groom(self, giver, receiver):
+        self.begin("groom")
+
+        def lick():
+            giver.do("together", ["groom1", "groom2"], 450, facing=-receiver.facing)
+            receiver.do("together", ["groomed"], 1000, facing=receiver.facing)
+            self.later(int(random.uniform(4, 8) * 1000), lambda: self.end(giver, receiver))
+        self.meet(giver, receiver, lick)
+
+    def chase(self, a, b):
+        self.begin("chase")
+        runner, chaser = random.sample((a, b), 2)
+        sw = runner.top.winfo_screenwidth()
+        far = random.uniform(0.1, 0.9) * sw
+        if runner.index == 0:   # 泡泡 carries the card: a short dash only
+            far = runner.home + random.choice((-1, 1)) * 220 * runner.app.scale
+        runner.walk_to(far, run=True, then=lambda: self.caught(runner, chaser))
+        runner.action["kind"] = "together"
+        self.follow(chaser, runner)
+
+    def follow(self, chaser, runner):
+        if self.running != "chase":
+            return
+        gap = runner.w * 0.7 * (-1 if runner.facing > 0 else 1)
+        chaser.walk_to(runner.x + gap, run=True)
+        chaser.action["kind"] = "together"
+        self.later(400, lambda: self.follow(chaser, runner))
+
+    def caught(self, runner, chaser):
+        self.running = "boop"
+        self.later(600, lambda: self.meet(chaser, runner, lambda: self.touch_after_chase(runner, chaser)))
+
+    def touch_after_chase(self, runner, chaser):
+        chaser.facing = -runner.facing
+        chaser.do("together", ["sit_s", "boop"], 900, facing=chaser.facing)
+        runner.do("together", ["sit_s", "boop"], 900, facing=runner.facing)
+        self.later(2700, lambda: self.end(runner, chaser))
+
+    def cuddle(self, a, b):
+        self.begin("cuddle")
+        mover, still = (b, a)   # the other cat comes to 泡泡
+
+        def sleep():
+            mover.facing = still.facing = random.choice((-1, 1))
+            for c in (a, b):
+                c.do("together", ["sleep_s"], 1000)
+            self.later(int(random.uniform(90, 300) * 1000), lambda: self.end(a, b))
+        still.do("together", ["sleep_s"], 1000)
+        self.meet(mover, still, sleep, gap=0.48)
+
+    def come_over(self):
+        p = self.pair()
+        if p and not self.running and not p[0].busy():
+            self.boop(*p)

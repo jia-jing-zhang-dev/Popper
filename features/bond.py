@@ -30,6 +30,13 @@ class BondFeature(Feature):
         hat = self.app.settings.get("bond_hat")
         return hat if hat in unlocked(self.level()) else None
 
+    def skin(self):
+        """泡泡's cat skin, for the bond window's pictures."""
+        try:
+            return self.app.feature("pet").skins()[0]
+        except StopIteration:
+            return "A_adult"
+
     def pet_style(self):
         """(accessory, size factor) for the desktop pet; plain when the feature is off."""
         if not self.on:
@@ -49,8 +56,8 @@ class BondFeature(Feature):
 
     def restyle(self):
         pet = self.app.feature("pet")
-        if getattr(pet, "win", None):
-            pet.win.restyle()
+        if getattr(pet, "cats", None):
+            pet.cats[0].restyle()
         if self.window("main"):
             self.window("main").refresh()
 

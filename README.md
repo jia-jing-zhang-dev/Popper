@@ -30,10 +30,13 @@ screenshot OCR, settings, and spaced-repetition review.
 - **12 languages, either direction.** Choose the language you're learning and the language to
   translate into. Select text in *your own* language and you get it in the language you're
   learning, spoken aloud.
-- **A desktop pet.** 泡泡 (FluffyBlob, a CC0 character) stands on your desktop on its own: it breathes,
-  blinks, hops when you click it or look a word up, wanders a little now and then, and dozes late at
-  night. The card floats above it as its speech bubble; drag either to move both. Turn it off in
-  Settings → Features to get the plain card back.
+- **Two cats on your desktop.** Realistic cats with real fur live along the bottom of the screen. The first,
+  泡泡, carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
+  sleepy); click it to hear the word again, drag either one to move it. The second keeps it company. They
+  sit about, blink, groom, yawn, nap and wander; while you work they stay calm, and when you step away they
+  touch noses, groom each other, chase, and nap cuddled up. Right-click → **Cats…** picks each cat's coat
+  (8) and body (adult, kitten, slim, longhair), or turns the second cat off. Turn them off in Settings →
+  Features to get the plain card back.
 - **A face on the card.** 泡泡 is a little bubble that blinks, thinks while the study buddy is
   working, opens its mouth when it has a question, looks worried when you haven't studied, dozes when
   paused, and celebrates when you finish something.
@@ -242,8 +245,10 @@ Snipping Tool must be in **Rectangle** mode. The script switches it for you.
 
 ## Credits
 
-The desktop pet is **FluffyBlob** by Jaqueline Martin (Chibizilla), CC0, from
-[OpenGameArt](https://opengameart.org/content/fluffyblob). See [`assets/pet/CREDITS.md`](assets/pet/CREDITS.md).
+The desktop cats are renders of **"An Animated Cat"** by **Evil_Katz**, CC-BY-4.0, from
+[Sketchfab](https://sketchfab.com/3d-models/an-animated-cat-aec25699660043a29595f9572149d1e8), re-posed,
+re-coloured and given fur for Popper. See [`assets/cats/CREDITS.md`](assets/cats/CREDITS.md) and
+[`tools/cat_render/`](tools/cat_render/).
 
 ## License
 

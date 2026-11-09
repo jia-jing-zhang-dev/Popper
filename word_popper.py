@@ -692,19 +692,20 @@ class App:
 def make_desktop_icon(settings):
     """Once: a Popper icon on the desktop (the pet's face) that opens Popper, or closes it while it runs.
     Only once, so an icon the owner deleted stays deleted."""
+    ico = os.path.join(DATA_DIR, "popper.ico")
+    skin = (settings.get("pet_skins") or ["A_adult"])[0]
+    if settings.get("icon_skin") != skin or not os.path.exists(ico):
+        # the icon is 泡泡's face; redrawn when the cat's skin changes, so the shortcut keeps showing it
+        try:
+            from features.pet import face_icon
+            face_icon(skin).save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+            settings["icon_skin"] = skin
+            save_settings(settings)
+        except (OSError, KeyError, TypeError):
+            pass
     if settings.get("desktop_icon_made"):
         return
-    ico = os.path.join(DATA_DIR, "popper.ico")
-    try:
-        face = Image.open(os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))),
-                                       "assets", "pet", "frame_00.png"))
-        side = max(face.size)
-        square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-        square.paste(face, ((side - face.width) // 2, (side - face.height) // 2))
-        square.save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-    except OSError:
-        ico = ""
-    make_shortcut("Desktop\\Popper.lnk", SCRIPT_PATH, ico)
+    make_shortcut("Desktop\\Popper.lnk", SCRIPT_PATH, ico if os.path.exists(ico) else "")
     settings["desktop_icon_made"] = True
     save_settings(settings)
 

@@ -21,3 +21,6 @@ exercises/
 # LeetCode practice folders (leetcode-py)
 leetcode/
 popper.ico
+
+# Blender working files for the cat renders (big; the model is credited in assets/cats/CREDITS.md)
+tools/cat_render/work/

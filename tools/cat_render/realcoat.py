@@ -1,0 +1,1 @@
+{'coord': 'rest', 'limb_z': (0.05, 0.07), 'paw_r': (0.01, 0.016), 'detail': 'Material_81_baseColor.png'}
