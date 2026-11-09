@@ -1,4 +1,4 @@
-"""What every Popper feature looks like.
+"""What every the app feature looks like.
 
 Looking words up is the card itself and always on. Everything else (review, goals and to-dos, the
 library check-in, the journal...) is a Feature: one module in this folder, listed in

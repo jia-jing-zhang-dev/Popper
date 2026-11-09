@@ -1,17 +1,17 @@
-# Popper (泡泡)
+# Desktop Study Cats (桌面学习猫)
 
-**A small study companion that lives in the corner of your screen, and keeps growing.**
+**Two realistic cats live on your Windows desktop and keep you company while you study: instant word lookup, review, goals and study time, with a cat that cheers you on.**
 
-Popper starts with one thing: select a word in any app (a novel, a PDF, a web page, a subtitle)
+Desktop Study Cats starts with one thing: select a word in any app (a novel, a PDF, a web page, a subtitle)
 and tap **Ctrl+Shift**. A small card pops up with the translation and pronunciation, and you hear
 the word read aloud. Then you go back to reading.
 
-Around that card, Popper grows features you can switch on or off: spaced-repetition review of the
+Around that card, the app grows features you can switch on or off: spaced-repetition review of the
 words you looked up, long-term goals and dated to-dos with stopwatches, a library check-in, and a
 journal that collects every day into one page you can reflect on. Each feature is one module, so
 adding the next one doesn't touch the rest (see [Adding a feature](#adding-a-feature)).
 
-![Popper demo: looking up words while reading Pride and Prejudice](docs/demo.gif)
+![Desktop Study Cats demo (recorded before the cats): looking up words while reading Pride and Prejudice](docs/demo.gif)
 
 ▶ **[Watch the full demo with narration](docs/demo.mp4)** (2:04): English and Spanish books,
 screenshot OCR, settings, and spaced-repetition review.
@@ -21,7 +21,7 @@ screenshot OCR, settings, and spaced-repetition review.
 ### Word lookup (always on)
 
 - **Works in every app.** Select text anywhere, then tap Ctrl+Shift. Text you can't select
-  (images, scanned PDFs, video frames) works too: snip it with Win+Shift+S and Popper reads
+  (images, scanned PDFs, video frames) works too: snip it with Win+Shift+S and the app reads
   it with Windows' built-in OCR.
 - **Hear it right away.** Natural neural voices (Microsoft Edge TTS) with regional accents: US,
   UK or Australian English; Spain or Mexico Spanish; Brazil or Portugal Portuguese; and more.
@@ -63,7 +63,7 @@ screenshot OCR, settings, and spaced-repetition review.
   spent) and tasks you can plan for any day, attach to a goal and time with a stopwatch.
   Finishing a task or a goal pops up a small celebration with how many days it took since you
   wrote it down.
-- **Study time, detected on its own.** Popper notices which program or site is in front and whether
+- **Study time, detected on its own.** The app notices which program or site is in front and whether
   you're at the keyboard, and counts the time you actually study: VS Code, PDFs, Brightspace, Google
   Docs and lectures count; YouTube, social apps and time away don't. A list of everything you used
   lets you re-sort any program or site with one click, and past days are re-counted. Shows today,
@@ -88,8 +88,8 @@ Requirements: **Windows 10/11** and **Python 3.10+** ([python.org](https://www.p
 Tested with Python 3.12.
 
 ```bat
-git clone https://github.com/jia-jing-zhang-dev/Popper.git
-cd Popper
+git clone https://github.com/jia-jing-zhang-dev/desktop-study-cats.git
+cd desktop-study-cats
 setup.bat
 ```
 
@@ -99,15 +99,15 @@ or turn on **Start with Windows** in Settings.
 
 ### Standalone app (no Python needed)
 
-To give Popper to someone who doesn't have Python, build a self-contained folder:
+To give the app to someone who doesn't have Python, build a self-contained folder:
 
 ```bat
 .venv\Scripts\python -m pip install pyinstaller
 .venv\Scripts\python packaging\build.py
 ```
 
-This creates `dist\Popper-windows.zip` (about 21 MB) with `Popper.exe` and a bilingual
-how-to. The packaged app keeps its settings and word list in `%APPDATA%\Word Popper` (its old name). It isn't
+This creates `dist\DesktopStudyCats-windows.zip` (about 21 MB) with `DesktopStudyCats.exe` and a bilingual
+how-to. The packaged app keeps its settings and word list in `%APPDATA%\Word Popper` (an old name, kept so data stays put). It isn't
 code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 (**More info → Run anyway**).
 
@@ -127,7 +127,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
 | Look back on a day and write a reflection | Right-click → **Journal…** |
-| Chat with the study buddy | Right-click → **Chat with Popper…**, or click the card when it says Popper has a message |
+| Chat with the study buddy | Right-click → **Chat with Paopao…**, or click the card when it says Paopao has a message |
 
 Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
 your word list.
@@ -175,7 +175,7 @@ Set the `WORD_POPPER_HOME` environment variable to keep them somewhere else.
 
 ## Privacy
 
-Popper has no account, no server and no telemetry. To do its job, it sends the text you
+The app has no account, no server and no telemetry. To do its job, it sends the text you
 look up to these services:
 
 - **Google Translate** (public web endpoint) for translation, dictionary senses and romanization
@@ -191,12 +191,12 @@ a local file.
   layouts when you have more than one installed. Either turn that off (**Settings → Time &
   language → Typing → Advanced keyboard settings → Input language hot keys**) or set *Look up a
   word by* to *Copying (Ctrl+C)*.
-- **No sound.** Edge voices need an internet connection. Offline, Popper falls back to the
+- **No sound.** Edge voices need an internet connection. Offline, the app falls back to the
   built-in Windows voice.
 - **"No text selected".** Some apps (games, some terminals) don't support copying. Use
   Win+Shift+S instead.
 - **Nothing happens in an app running as administrator.** Windows blocks keystrokes sent from a
-  normal app to an elevated one, so Popper can't copy the selection there. Run Popper as
+  normal app to an elevated one, so the app can't copy the selection there. Run the app as
   administrator too, or use a screenshot.
 
 ## Project layout
@@ -229,9 +229,9 @@ up in the menu, in Settings → Features, and in the journal. [`CLAUDE.md`](CLAU
 
 The demo is recorded for real, with no mock-ups. [`demo/record.py`](demo/record.py) opens
 [`demo/book.html`](demo/book.html) full-screen (public-domain excerpts from *Pride and Prejudice*
-and *Don Quijote*), runs Popper with a throw-away data folder, and drives the mouse and
+and *Don Quijote*), runs the app with a throw-away data folder, and drives the mouse and
 keyboard while ffmpeg records the screen. [`demo/edit.py`](demo/edit.py) adds the captions and
-key badges and a voice-over, and rebuilds the word audio from Popper's own playback log. Where a
+key badges and a voice-over, and rebuilds the word audio from the app's own playback log. Where a
 narration line needs more room, the picture holds still so the narrator never talks over a word. To re-record:
 
 ```bat
@@ -247,7 +247,7 @@ Snipping Tool must be in **Rectangle** mode. The script switches it for you.
 
 The desktop cats are renders of **"An Animated Cat"** by **Evil_Katz**, CC-BY-4.0, from
 [Sketchfab](https://sketchfab.com/3d-models/an-animated-cat-aec25699660043a29595f9572149d1e8), re-posed,
-re-coloured and given fur for Popper. See [`assets/cats/CREDITS.md`](assets/cats/CREDITS.md) and
+re-coloured and given fur for this app. See [`assets/cats/CREDITS.md`](assets/cats/CREDITS.md) and
 [`tools/cat_render/`](tools/cat_render/).
 
 ## License

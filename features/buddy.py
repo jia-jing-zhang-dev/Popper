@@ -158,7 +158,7 @@ class BuddyFeature(Feature):
             self.discover()
 
     def local_message(self, text, kind, mood="talking"):
-        """A message Popper writes itself (no Claude call)."""
+        """A message the app writes itself (no Claude call)."""
         self.store.say("buddy", text, kind)
         win = self.window("chat")
         if win:

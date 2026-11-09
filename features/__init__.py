@@ -1,4 +1,4 @@
-"""Popper's features. This list sets their order in the right-click menu, in Settings and in the journal.
+"""The app's features. This list sets their order in the right-click menu, in Settings and in the journal.
 
 To add a feature, copy _template.py, then add its class here.
 """

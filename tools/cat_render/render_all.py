@@ -1,5 +1,5 @@
 # Run with: blender -b catrig.blend --python render_all.py -- OUT_DIR [types...]
-# Renders every frame Popper uses, for every body type and coat, plus where the head is in each frame.
+# Renders every frame the app uses, for every body type and coat, plus where the head is in each frame.
 import json
 import os
 import sys

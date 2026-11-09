@@ -1,6 +1,6 @@
-# Popper (泡泡)
+# Desktop Study Cats (桌面学习猫)
 
-Formerly Word Popper. The code still uses the old name in a few places on purpose: `word_popper.py`,
+Formerly Popper, and before that Word Popper (renamed to Desktop Study Cats on 2026-11-08; the first cat is still called 泡泡, "Paopao" in the English UI). The code still uses the old names in a few places on purpose: the local folder `word-popper`, `word_popper.py`,
 the `WORD_POPPER_HOME` variable, the single-instance mutex and the packaged app's data folder
 `%APPDATA%\Word Popper`. Don't rename those. Renaming them would split the owner's data and
 startup setup.
@@ -26,11 +26,11 @@ run.bat                                     :: start (pythonw, no console)
 - Only one instance runs at a time (a named mutex). To load new code, stop the running copy and start
   it again. Match **only `pythonw.exe`** processes whose command line contains `word_popper.py`.
   A broader match also kills the shell running the command, because its command line contains the
-  same text. Then start `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Popper.lnk`
-  (`rename_startup_link()` moves an old `Word Popper.lnk` over on start).
+  same text. Then start `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Desktop Study Cats.lnk`
+  (`rename_startup_link()` moves an old `Word Popper.lnk` or `Popper.lnk` over on start).
 - Launching again while it runs **closes** the running copy (it sets the named event `PopperQuit`), so the
-  desktop icon `Popper.lnk` (made once on first start, `make_desktop_icon`; `popper.ico` in DATA_DIR is 泡泡's cat face, redrawn when its skin changes)
-  opens and closes Popper. Starting a `.lnk` with `Start-Process` from Claude's shell doesn't survive; use
+  desktop icon `Desktop Study Cats.lnk` (made once on first start, an old `Popper.lnk` is replaced; `make_desktop_icon`; `popper.ico` in DATA_DIR is 泡泡's cat face, redrawn when its skin changes)
+  opens and closes the app. Starting a `.lnk` with `Start-Process` from Claude's shell doesn't survive; use
   `os.startfile`.
 - Settings changed by editing `settings.json` only take effect if the app is stopped first,
   otherwise it writes its in-memory settings back over the file.
@@ -149,7 +149,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 
 - Commit after each finished feature (one feature per commit, tested first), then push.
 - Author identity is `jia-jing-zhang-dev` (global git config). The remote is
-  `jia-jing-zhang-dev/Popper` (renamed from `Real-Time-Translate-MCP-`), which is **public**: everything
+  `jia-jing-zhang-dev/desktop-study-cats` (renamed from `Popper`, before that `Real-Time-Translate-MCP-`), which is **public**: everything
   pushed is visible to anyone. Never commit personal data, keys or tokens.
 - Before every commit: if the change creates new files or folders (data, caches, working dirs, logs),
   add them to `.gitignore` in the same commit, then read `git status --short` (and `--ignored` when new

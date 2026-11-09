@@ -206,7 +206,7 @@ def loaf():
     ground()
 
 def pose(name, P=None):
-    """Every frame Popper uses, by name."""
+    """Every frame the app uses, by name."""
     P = dict(P or {})
     set_yaw(0)          # pose in the model's own frame; the turn to the side comes last
     side = name.endswith("_s") or name.startswith(("walk", "run", "boop", "groom"))

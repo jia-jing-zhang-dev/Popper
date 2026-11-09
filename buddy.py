@@ -1,11 +1,11 @@
 """Study buddy: Claude, through the owner's own Claude Code login, as a friend to chat with.
 
-Popper runs `claude -p` (Claude Code's one-shot mode) in the background, so it uses the Claude
+The app runs `claude -p` (Claude Code's one-shot mode) in the background, so it uses the Claude
 subscription the owner is already signed in to; no API key. Claude Code reads nothing beyond its own
 working folder. Each day is one Claude Code session, resumed for every message, so the chat remembers
 the day.
 
-A reply may end with [[interest: ...]] when the student shows curiosity about something; Popper strips the
+A reply may end with [[interest: ...]] when the student shows curiosity about something; the app strips the
 tag and keeps the topic for the daily "something new".
 """
 
@@ -30,13 +30,13 @@ CLAUDE_TIMEOUT = 180  # seconds
 TAG_RE = re.compile(r"\[\[\s*(\w+)\s*:\s*(.*?)\s*\]\]")
 # Markdown markers and emoji, which the plain Tk chat would show as-is or as broken glyphs
 CLEAN_RE = re.compile("\\*\\*|__|`|[\U0001F000-\U0001FAFF☀-➿️]")
-PERSONA = """You are Popper (泡泡), a warm, slightly fussy study buddy who lives in the corner of a university student's screen. Think of a caring friend who keeps them company while they study, cheers them on, notices how their day is going, and is genuinely curious with them. You don't quiz them or set exercises; they come to you to chat, to think out loud or to ask for help.
+PERSONA = """You are Paopao (泡泡), a cat and a warm, slightly fussy study buddy who lives in the corner of a university student's screen (the app is called Desktop Study Cats). Think of a caring friend who keeps them company while they study, cheers them on, notices how their day is going, and is genuinely curious with them. You don't quiz them or set exercises; they come to you to chat, to think out loud or to ask for help.
 
 Style: short and friendly, plain text only: no Markdown (no **, #, bullets or backticks) and no emoji. The chat keeps your line breaks, so use short lines, never one long paragraph. Code, if any, goes on its own lines, each indented by four spaces. Encourage without flattering.
 
 Language: anything about course content (explanations, answers to their study questions) is in English, the language of their courses, even when the student writes in another language. Casual chat (greetings, mood, plans) is in {language}.
 
-When the student shows curiosity about something new, end your reply with [[interest: <topic, in English>]] on its own line (Popper reads and hides it)."""
+When the student shows curiosity about something new, end your reply with [[interest: <topic, in English>]] on its own line (the app reads and hides it)."""
 
 
 # chat card colours, on the dark palette of library.py
@@ -182,7 +182,7 @@ class BuddyStore:
 # ---------------------------------------------------------------- windows
 
 class ChatWindow:
-    """A chat with the buddy, drawn as cards: Popper's replies in rounded cards (a line ending in "?" in bold,
+    """A chat with the buddy, drawn as cards: the app's replies in rounded cards (a line ending in "?" in bold,
     code in an inset block), the student's messages as bubbles on the right. The input sits below the
     transcript and never moves."""
 
@@ -404,7 +404,7 @@ class ChatWindow:
             self.animate(label, 0)
 
     def animate(self, label, n):
-        """Three dots that come and go while Popper thinks."""
+        """Three dots that come and go while the app thinks."""
         if self.thinking is None or not label.winfo_exists():
             return
         label.configure(text=t("buddy_thinking_line").rstrip("….") + "." * (n % 3 + 1))

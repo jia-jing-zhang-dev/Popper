@@ -1,4 +1,4 @@
-泡泡 Popper 使用说明
+桌面学习猫 Desktop Study Cats 使用说明
 ====================
 
 读英文（或其他外语）时，遇到不认识的词：选中它，按一下 Ctrl+Shift，
@@ -6,7 +6,7 @@
 
 【第一次打开】
 1. 把整个压缩包解压到一个固定的位置（比如“文档”文件夹），不要直接在压缩包里运行。
-2. 双击 Popper.exe。
+2. 双击 DesktopStudyCats.exe。
 3. 如果 Windows 弹出“Windows 已保护你的电脑”：点“更多信息”→“仍要运行”。
    （这个软件还没有购买代码签名证书，所以 Windows 不认识它，不是病毒。）
 4. 屏幕右下角会出现一个深色小卡片“🔊 泡泡”，就说明在运行了。
@@ -41,11 +41,7 @@
 点左边的标签在“学习 / 不算 / 忽略”之间切换，之前的时间会按新分类重新计算。只保存在本机。
 
 【学习伙伴】（设置 → 功能 里勾选“学习伙伴”；需要电脑上已安装并登录 Claude Code）
-像个操心的朋友：只读取你选的教材文件夹，知道你正在看什么讲义。认真学了 15～20 分钟后，
-卡片会提示“泡泡有个问题”，点开就能在小窗口里回答；它会批改、讲解，答错的题过几天再问你。
-早上提醒考试倒计时，晚上学得太少会念叨你，每天还会分享一个和你兴趣相关的新知识。
-右键卡片 →“和泡泡聊天…”可以随时提问；“教材文件夹”可以增删；“今天先别问了”当天不再打扰。
-23:00～8:00 免打扰，一天最多 20 题。讲义内容、窗口标题和聊天内容会发送给 Claude。
+随时右键 →“和泡泡聊天…”。早上提醒目标倒计时，晚上学得太少会提醒，每天分享一个新东西。23:00-08:00 不打扰。你的消息和正在看的学习窗口标题会发给 Claude。
 
 【Claude 额度】（设置 → 功能 里勾选；需要已登录 Claude Code）
 卡片右边显示 Claude 5 小时额度已用多少（灰色；50% 起变黄，80% 起变红），点一下看多久后重置。
@@ -67,7 +63,7 @@
 - 你的设置和词库保存在 %APPDATA%\Word Popper 里，删掉软件文件夹不会丢。
 
 
-Popper — How to use
+Desktop Study Cats — How to use
 ===================
 
 When you hit a word you don't know: select it and tap Ctrl+Shift. A small card in the corner
@@ -75,10 +71,10 @@ shows the translation and pronunciation and reads it aloud. Every word is saved 
 
 First run
 1. Unzip the whole folder somewhere permanent (e.g. Documents). Don't run it from inside the zip.
-2. Double-click Popper.exe.
+2. Double-click DesktopStudyCats.exe.
 3. If Windows says "Windows protected your PC": click "More info" → "Run anyway".
    (The app isn't code-signed yet, so Windows doesn't recognise it.)
-4. A small dark card "🔊 Popper" appears in the bottom-right corner: it's running.
+4. A small dark card "🔊 Paopao" appears in the bottom-right corner: it's running.
 
 Looking words up
 - Select a word, phrase or sentence → tap Ctrl+Shift (press both, release)
@@ -99,12 +95,7 @@ Study time (turn it on in Settings → Features): counts the time you actually s
 program or site in front and whether you're at the keyboard. Right-click → Study time to see it
 and click a tag to re-sort a program or site. Kept only on this computer.
 
-Study buddy (Settings → Features; needs Claude Code installed and signed in): reads only the course
-folders you pick and notices what you have open. After 15-20 minutes of study the card says Popper
-has a question; answer it in the chat window and it grades and explains, and brings missed ones back
-later. Morning exam countdowns, an evening nudge, and something new each day. Right-click → Chat
-with Popper… anytime. Quiet 23:00-08:00, at most 20 questions a day. Course text, window titles and
-your messages go to Claude.
+Study buddy (Settings → Features; needs Claude Code installed and signed in): chat with Paopao any time (right-click → Chat with Paopao…). Mornings bring goal countdowns, evenings a nudge if you barely studied, and once a day something new. Quiet 23:00-08:00. Your messages and the titles of the study windows you have open go to Claude.
 
 Journal (right-click → Journal…): one page per day with finished tasks and their times, new words,
 library time, and a reflection you write (saved automatically). Right-click → Library log… shows today, this week, your

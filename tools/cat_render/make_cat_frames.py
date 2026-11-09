@@ -1,4 +1,4 @@
-"""Turn the Blender renders into Popper's cat frames.
+"""Turn the Blender renders into the app's cat frames.
 
     python tools/cat_render/make_cat_frames.py RENDER_DIR
 
@@ -16,7 +16,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "..", "assets", "cats")
-CANVAS_H = 200   # stored frame height; Popper scales it to the screen
+CANVAS_H = 200   # stored frame height; the app scales it to the screen
 PAD = 6
 
 

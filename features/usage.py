@@ -1,7 +1,7 @@
 """Claude usage: the plan limits ("5-hour: 52% used, resets in 3 h 49 min") live on the card.
 
 Claude Code's one-shot mode answers `/usage` locally: no model call, nothing taken from the quota,
-about two seconds. Popper runs it every few minutes in the background and parses lines like
+about two seconds. the app runs it every few minutes in the background and parses lines like
     Current session: 52% used · resets Nov 1, 7pm (America/New_York)
 """
 
@@ -76,7 +76,7 @@ class UsageFeature(Feature):
         self.app.root.after(1000, self.render_loop)
 
     def workdir(self):
-        """Run Claude Code in Popper's own scratch folder, never in the (public) repository."""
+        """Run Claude Code in the app's own scratch folder, never in the (public) repository."""
         path = os.path.join(self.app.data_dir, "buddy")
         os.makedirs(path, exist_ok=True)
         return path

@@ -10,19 +10,21 @@ from i18n import UI_LANGUAGES, t
 from languages import LANGUAGES, label, voices
 
 STARTUP_DIR = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs\Startup")
-STARTUP_LINK = os.path.join(STARTUP_DIR, "Popper.lnk")
-OLD_STARTUP_LINK = os.path.join(STARTUP_DIR, "Word Popper.lnk")  # before the rename
+APP_NAME = "Desktop Study Cats"
+STARTUP_LINK = os.path.join(STARTUP_DIR, APP_NAME + ".lnk")
+OLD_STARTUP_LINKS = [os.path.join(STARTUP_DIR, n) for n in ("Word Popper.lnk", "Popper.lnk")]  # earlier names
 SPEEDS = [("speed_slow", "-25%"), ("speed_relaxed", "-10%"), ("speed_normal", "+0%"), ("speed_fast", "+15%")]
 SIZES = [("size_small", "small"), ("size_normal", "normal"), ("size_large", "large"), ("size_huge", "huge")]
 
 
 def rename_startup_link():
     """Carry a Start-with-Windows shortcut over from the old name, so there's never two."""
-    if os.path.exists(OLD_STARTUP_LINK):
-        if os.path.exists(STARTUP_LINK):
-            os.remove(OLD_STARTUP_LINK)
-        else:
-            os.replace(OLD_STARTUP_LINK, STARTUP_LINK)
+    for old in OLD_STARTUP_LINKS:
+        if os.path.exists(old):
+            if os.path.exists(STARTUP_LINK):
+                os.remove(old)
+            else:
+                os.replace(old, STARTUP_LINK)
 
 
 def autostart_enabled():
@@ -38,7 +40,7 @@ def set_autostart(enabled, script):
 
 
 def make_shortcut(link, script, icon=""):
-    """A .lnk that starts Popper (or, while it runs, closes it: see word_popper.py). `link` may start with
+    """A .lnk that starts the app (or, while it runs, closes it: see word_popper.py). `link` may start with
     'Desktop\\', which is resolved by Windows, since the desktop is often moved into OneDrive."""
     if getattr(sys, "frozen", False):  # packaged exe: the shortcut points straight at it
         target, args = sys.executable, ""
@@ -51,9 +53,9 @@ def make_shortcut(link, script, icon=""):
           "{ $l=Join-Path ([Environment]::GetFolderPath('Desktop')) $l.Substring(8) };"
           "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($l);"
           "$s.TargetPath=$env:WP_TARGET; $s.Arguments=$env:WP_ARGS;"
-          "$s.WorkingDirectory=$env:WP_DIR; $s.Description='Popper';"
+          "$s.WorkingDirectory=$env:WP_DIR; $s.Description=$env:WP_NAME;"
           "if ($env:WP_ICON) { $s.IconLocation=$env:WP_ICON }; $s.Save()")
-    env = dict(os.environ, WP_LINK=link, WP_TARGET=target, WP_ARGS=args, WP_ICON=icon,
+    env = dict(os.environ, WP_NAME=APP_NAME, WP_LINK=link, WP_TARGET=target, WP_ARGS=args, WP_ICON=icon,
                WP_DIR=os.path.dirname(script))
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=env,
                    creationflags=subprocess.CREATE_NO_WINDOW, check=False)

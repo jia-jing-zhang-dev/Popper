@@ -1,4 +1,4 @@
-"""Build dist/Popper-windows.zip: a folder with Popper.exe that runs without Python.
+"""Build dist/the app-windows.zip: a folder with the app.exe that runs without Python.
 
     .venv\\Scripts\\python -m pip install pyinstaller
     .venv\\Scripts\\python packaging\\build.py
@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DIST = os.path.join(ROOT, "dist")
-NAME = "Popper"
+NAME = "DesktopStudyCats"
 
 
 def make_icon(path):

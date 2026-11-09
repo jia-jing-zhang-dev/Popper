@@ -160,7 +160,7 @@ APP_NAMES = {
 def label_of(key):
     kind, name = key.split(":", 1)
     if key == "app:popper":
-        return "Popper"
+        return "Desktop Study Cats"
     if kind == "app":
         return APP_NAMES.get(name) or (name[:-4] if name.endswith(".exe") else name)
     return name

@@ -1,4 +1,4 @@
-"""Popper (泡泡) — a small study companion in the corner of the screen.
+"""Desktop Study Cats — two cats on the desktop keep you company while you study (the card is 泡泡's speech bubble).
 
 The core is word lookup, described below; everything else is a feature in features/.
 
@@ -15,6 +15,7 @@ import os
 import queue
 import random
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -29,14 +30,14 @@ from i18n import t
 from languages import LANGUAGES, label, normalize, voice_for
 from mascot import Mascot
 from lookup import CJK_RE, look_up, ocr_image, ocr_tag_for
-from settings_window import SettingsWindow, make_shortcut, rename_startup_link
+from settings_window import APP_NAME, SettingsWindow, make_shortcut, rename_startup_link
 from speech import Speaker
 from features import FEATURES
 from journal import Journal
 from library import LibraryLog, TodoList
 from vocab import Vocab
 
-FROZEN = getattr(sys, "frozen", False)  # running as the packaged Popper.exe
+FROZEN = getattr(sys, "frozen", False)  # running as the packaged the app.exe
 SCRIPT_PATH = sys.executable if FROZEN else os.path.abspath(__file__)
 # The packaged app keeps settings and words in %APPDATA%, so they survive moving or updating it
 # ("Word Popper" is the old name, kept so existing data stays where it is)
@@ -191,7 +192,7 @@ class App:
         self.settings_win = None
 
         root = self.root = tk.Tk()
-        root.title("Popper")
+        root.title("Desktop Study Cats")
         root.overrideredirect(True)
         root.attributes("-topmost", True)
         root.attributes("-alpha", 0.96)
@@ -690,7 +691,7 @@ class App:
 
 
 def make_desktop_icon(settings):
-    """Once: a Popper icon on the desktop (the pet's face) that opens Popper, or closes it while it runs.
+    """Once: an icon on the desktop (泡泡's face) that opens the app, or closes it while it runs.
     Only once, so an icon the owner deleted stays deleted."""
     ico = os.path.join(DATA_DIR, "popper.ico")
     skin = (settings.get("pet_skins") or ["A_adult"])[0]
@@ -703,16 +704,26 @@ def make_desktop_icon(settings):
             save_settings(settings)
         except (OSError, KeyError, TypeError):
             pass
-    if settings.get("desktop_icon_made"):
+    if settings.get("desktop_icon_made") and settings.get("desktop_link") == APP_NAME:
         return
-    make_shortcut("Desktop\\Popper.lnk", SCRIPT_PATH, ico if os.path.exists(ico) else "")
+    if settings.get("desktop_icon_made"):
+        # the app was renamed: replace the old desktop icon (only if the owner still has it)
+        old = subprocess.run(["powershell", "-NoProfile", "-Command",
+                              "$d=[Environment]::GetFolderPath('Desktop'); $o=Join-Path $d 'Popper.lnk';"
+                              "if (Test-Path $o) { Remove-Item $o; 'had' }"],
+                             capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+        if "had" in old:
+            make_shortcut(f"Desktop\\{APP_NAME}.lnk", SCRIPT_PATH, ico if os.path.exists(ico) else "")
+    else:
+        make_shortcut(f"Desktop\\{APP_NAME}.lnk", SCRIPT_PATH, ico if os.path.exists(ico) else "")
+    settings["desktop_link"] = APP_NAME
     settings["desktop_icon_made"] = True
     save_settings(settings)
 
 
 if __name__ == "__main__":
     # Single instance: launching again while it's running closes the running copy, so the desktop
-    # icon opens and closes Popper (the mutex keeps its old name so an older copy and this one still
+    # icon opens and closes the app (the mutex keeps its old name so an older copy and this one still
     # exclude each other)
     k32 = ctypes.windll.kernel32
     _mutex = k32.CreateMutexW(None, False, "WordPopperSingleInstance")

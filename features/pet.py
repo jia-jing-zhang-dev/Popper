@@ -187,7 +187,7 @@ class PetFeature(Feature):
             return 0
 
     def drowsy(self):
-        """Late at night, or Popper paused: the cats would rather sleep."""
+        """Late at night, or the app paused: the cats would rather sleep."""
         hour = time.localtime().tm_hour
         return hour >= 23 or hour < 7 or not self.app.settings.get("listening", True)
 
