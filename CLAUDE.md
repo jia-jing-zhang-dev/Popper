@@ -29,7 +29,7 @@ run.bat                                     :: start (pythonw, no console)
   same text. Then start `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Desktop Study Cats.lnk`
   (`rename_startup_link()` moves an old `Word Popper.lnk` or `Popper.lnk` over on start).
 - Launching again while it runs **closes** the running copy (it sets the named event `PopperQuit`), so the
-  desktop icon `Desktop Study Cats.lnk` (made once on first start, an old `Popper.lnk` is replaced; `make_desktop_icon`; `popper.ico` in DATA_DIR is 泡泡's cat face, redrawn when its skin changes)
+  desktop icon `Desktop Study Cats.lnk` (made once on first start, an old `Popper.lnk` is replaced; `make_desktop_icon`; `paw.ico` in DATA_DIR, a cat's paw drawn by `appicon.py`; it is also the window icon and the packaged exe's icon)
   opens and closes the app. Starting a `.lnk` with `Start-Process` from Claude's shell doesn't survive; use
   `os.startfile`.
 - Settings changed by editing `settings.json` only take effect if the app is stopped first,

@@ -82,17 +82,6 @@ def frame_image(skin, frame, scale, mirror=False, hat=None, anchor=None, mark=No
     return ImageTk.PhotoImage(base)
 
 
-def face_icon(skin="A_adult", size=256):
-    """The cat's face, square, for the desktop icon."""
-    meta = load_meta()
-    im = Image.open(os.path.join(ASSETS, skin, "sit.webp")).convert("RGBA")
-    a = meta["anchors"][skin_type(skin)]["sit"]
-    (hx, hy), (lx, _), (rx, _) = a["head"], a["ear_l"], a["ear_r"]
-    r = abs(lx - rx) * 1.25
-    box = (round(hx - r), round(hy - r * 0.35), round(hx + r), round(hy + r * 1.65))
-    return im.crop(box).resize((size, size), Image.LANCZOS)
-
-
 class PetFeature(Feature):
     id = "pet"
     name_key = "feat_pet"

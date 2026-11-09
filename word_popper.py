@@ -197,9 +197,8 @@ class App:
         root.attributes("-topmost", True)
         root.attributes("-alpha", 0.96)
         root.configure(bg=BG)
-        icon = os.path.join(getattr(sys, "_MEIPASS", os.path.join(os.path.dirname(SCRIPT_PATH), "packaging")),
-                            "icon.ico")
-        if os.path.exists(icon):
+        icon = app_icon()
+        if icon and os.path.exists(icon):
             root.iconbitmap(default=icon)  # also used by the review, word-list and settings windows
         self.display_scale = root.winfo_fpixels("1i") / 96
 
@@ -690,20 +689,35 @@ class App:
         self.root.mainloop()
 
 
-def make_desktop_icon(settings):
-    """Once: an icon on the desktop (泡泡's face) that opens the app, or closes it while it runs.
-    Only once, so an icon the owner deleted stays deleted."""
-    ico = os.path.join(DATA_DIR, "popper.ico")
-    skin = (settings.get("pet_skins") or ["A_adult"])[0]
-    if settings.get("icon_skin") != skin or not os.path.exists(ico):
-        # the icon is 泡泡's face; redrawn when the cat's skin changes, so the shortcut keeps showing it
+def app_icon():
+    """The paw icon file (drawn once). A new file name for a new picture: Windows caches icons by path."""
+    if FROZEN:
+        return os.path.join(sys._MEIPASS, "icon.ico")
+    ico = os.path.join(DATA_DIR, "paw.ico")
+    if not os.path.exists(ico):
         try:
-            from features.pet import face_icon
-            face_icon(skin).save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-            settings["icon_skin"] = skin
-            save_settings(settings)
-        except (OSError, KeyError, TypeError):
-            pass
+            import appicon
+            appicon.save_ico(ico)
+        except OSError:
+            return ""
+    return ico
+
+
+def make_desktop_icon(settings):
+    """Once: an icon on the desktop (a cat's paw) that opens the app, or closes it while it runs.
+    Only once, so an icon the owner deleted stays deleted. Shortcuts made with an older icon get the paw."""
+    ico = app_icon()
+    if settings.get("icon_kind") != "paw":
+        from settings_window import STARTUP_LINK, autostart_enabled
+        if autostart_enabled():
+            make_shortcut(STARTUP_LINK, SCRIPT_PATH, ico)
+        if settings.get("desktop_icon_made"):
+            make_shortcut(f"Desktop\\{APP_NAME}.lnk", SCRIPT_PATH, ico)
+        settings["icon_kind"] = "paw"
+        old = os.path.join(DATA_DIR, "popper.ico")   # the previous icon file
+        if os.path.exists(old):
+            os.remove(old)
+        save_settings(settings)
     if settings.get("desktop_icon_made") and settings.get("desktop_link") == APP_NAME:
         return
     if settings.get("desktop_icon_made"):

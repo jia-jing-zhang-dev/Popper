@@ -31,12 +31,12 @@ def autostart_enabled():
     return os.path.exists(STARTUP_LINK)
 
 
-def set_autostart(enabled, script):
+def set_autostart(enabled, script, icon=""):
     if not enabled:
         if os.path.exists(STARTUP_LINK):
             os.remove(STARTUP_LINK)
         return
-    make_shortcut(STARTUP_LINK, script)
+    make_shortcut(STARTUP_LINK, script, icon)
 
 
 def make_shortcut(link, script, icon=""):
@@ -159,6 +159,6 @@ class SettingsWindow:
         s["screenshots"] = self.shots_var.get()
         s["features"] = {fid: var.get() for fid, var in self.feature_vars.items()}
         if self.autostart_var.get() != autostart_enabled():
-            set_autostart(self.autostart_var.get(), self.app.script_path)
+            set_autostart(self.autostart_var.get(), self.app.script_path, getattr(sys.modules.get("__main__"), "app_icon", lambda: "")())
         self.top.destroy()
         self.app.apply_settings(s)

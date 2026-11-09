@@ -1,7 +1,6 @@
 """Choosing the cats: a coat and a body type for 泡泡 and for the second cat, and whether there is a second cat."""
 
 import os
-import sys
 import tkinter as tk
 
 from PIL import Image, ImageTk
@@ -86,8 +85,4 @@ class SkinWindow:
 
     def pick(self, i, skin):
         self.feature.set_skin(i, skin)
-        if i == 0:   # the desktop icon shows 泡泡's face; the running app is __main__, don't import it again
-            make_icon = getattr(sys.modules.get("__main__"), "make_desktop_icon", None)
-            if make_icon:
-                make_icon(self.app.settings)
         self.refresh()
