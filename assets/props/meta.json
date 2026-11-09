@@ -1,0 +1,50 @@
+{
+ "bedback": {
+  "size": [
+   176,
+   60
+  ],
+  "frames": 1,
+  "radius": 30.0
+ },
+ "bedfront": {
+  "size": [
+   174,
+   49
+  ],
+  "frames": 1,
+  "radius": 24.5
+ },
+ "foodempty": {
+  "size": [
+   49,
+   19
+  ],
+  "frames": 1,
+  "radius": 9.5
+ },
+ "foodfull": {
+  "size": [
+   49,
+   19
+  ],
+  "frames": 1,
+  "radius": 9.5
+ },
+ "post": {
+  "size": [
+   78,
+   185
+  ],
+  "frames": 1,
+  "radius": 92.5
+ },
+ "water": {
+  "size": [
+   49,
+   19
+  ],
+  "frames": 1,
+  "radius": 9.5
+ }
+}

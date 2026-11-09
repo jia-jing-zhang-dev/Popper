@@ -149,6 +149,10 @@ def face(P):
 
 
 BASE_YAW = -90.0
+LIFE = {"eat1": lambda: eat(1), "eat2": lambda: eat(2), "drink1": lambda: drink(1), "drink2": lambda: drink(2),
+        "scratch1": lambda: scratch(1), "scratch2": lambda: scratch(2), "arch": lambda: arch(),
+        "tail1": lambda: tail_swish(1), "tail2": lambda: tail_swish(2), "rub1": lambda: rub(1), "rub2": lambda: rub(2)}
+FRONT_LIFE = ("tail1", "tail2")
 PLAY = {"crouch": lambda: crouch(), "pounce": lambda: pounce(), "bat1": lambda: swat(1), "bat2": lambda: swat(2),
         "stretch": lambda: stretch(), "roll1": lambda: roll(1), "roll2": lambda: roll(2)}   # the model's own orientation fix; poses add their yaw on top
 
@@ -214,6 +218,21 @@ def pose(name, P=None):
     bpy.data.objects["Real_root"].rotation_euler.x = 0
     set_yaw(0)          # pose in the model's own frame; the turn to the side comes last
     side = name.endswith("_s") or name.startswith(("walk", "run", "boop", "groom"))
+    if name in LIFE:
+        bpy.data.objects["Real_root"].rotation_euler.x = 0
+        LIFE[name]()
+        F = {"eat1": {"eyes": 0.5}, "eat2": {"eyes": 0.6, "jaw": 0.5}, "drink1": {"eyes": 0.6, "jaw": 0.2},
+             "drink2": {"eyes": 0.6, "jaw": 0.35, "tongue": 1}, "scratch1": {"ears": 0.5}, "scratch2": {"ears": 0.5, "eyes": 0.3},
+             "arch": {"ears": -1, "wide": 1, "jaw": 0.6}, "tail1": {}, "tail2": {"eyes": 0.2},
+             "rub1": {"eyes": 1}, "rub2": {"eyes": 1}}[name]
+        face(F)
+        side = name not in FRONT_LIFE
+        set_yaw(-90 if side else 0)
+        if name.startswith("scratch"):
+            ground_on(["l_ball", "r_ball"])
+        else:
+            ground()
+        return side
     if name in PLAY:
         root = bpy.data.objects["Real_root"]
         root.rotation_euler.x = 0
@@ -334,3 +353,66 @@ def roll(stage):
     root.rotation_euler.x = math.radians(80 if stage == 1 else 150)
     bpy.context.view_layer.update()
     ground()
+
+
+# ---------- daily life: eating, drinking, scratching, arching, tail swish, face rubbing
+
+def eat(stage):
+    """Standing over a bowl, head down in it; stage 2 chewing (jaw open)."""
+    reset()
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, 12); rot(f"{s}_elb", X, -22); rot(f"{s}_wri", X, 12)
+    rot("s4", X, 10)
+    rot("neckb", X, 48); rot("neck", X, 12); rot("head", X, 18 if stage == 1 else 12)
+    rot("t1", X, 10)
+    for i in range(2, 7):
+        rot(f"t{i}", X, -6)
+
+def drink(stage):
+    """Crouched by the water bowl, head low and forward, lapping (tongue out on stage 2)."""
+    reset()
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, 28); rot(f"{s}_elb", X, -55); rot(f"{s}_wri", X, 30)
+        rot(f"{s}_fem", X, -35); rot(f"{s}_knee", X, 85); rot(f"{s}_ank", X, -50)
+    rot("neckb", X, 30); rot("head", X, 20)
+    rot("t1", X, -15)
+    for i in range(2, 7):
+        rot(f"t{i}", Z, -12)
+
+def scratch(stage):
+    """Up on the hind legs, front paws high on the post, pulling down (stage 2 lower)."""
+    reset()
+    rot("body", X, -62)                       # the whole cat rears up, pivoting at the hips
+    for s in ("l", "r"):
+        rot(f"{s}_fem", X, 55); rot(f"{s}_knee", X, -20); rot(f"{s}_ank", X, -10)
+        up = -40 if stage == 1 else -20
+        rot(f"{s}_hum", X, up); rot(f"{s}_elb", X, 20 if stage == 1 else 45); rot(f"{s}_wri", X, -30)
+    rot("neckb", X, 35); rot("head", X, 10)
+    rot("t1", X, 75)                          # tail back along the floor behind it
+    for i in range(2, 7):
+        rot(f"t{i}", X, 4)
+
+def arch():
+    """Startled: back humped high in the middle, legs straight and drawn together, tail up."""
+    reset()
+    rot("s2", X, -28)                         # the back rises from the hips...
+    rot("s4", X, 40)                          # ...and comes down again to the shoulders: a hump
+    for s in ("l", "r"):
+        rot(f"{s}_hum", X, -20); rot(f"{s}_elb", X, 6)     # front legs straight, pulled back under
+        rot(f"{s}_fem", X, -14); rot(f"{s}_knee", X, 10)   # hind legs straight, pulled forward
+    rot("neckb", X, -6); rot("head", X, 18)
+    rot("t1", X, 70)
+    for i in range(2, 7):
+        rot(f"t{i}", X, 4)
+
+def tail_swish(stage):
+    """Sitting, the tail lifted off the ground and swept to one side or the other."""
+    sit({})
+    side = -1 if stage == 1 else 1
+    rot("t2", X, 25); rot("t3", Z, side * 25); rot("t4", Z, side * 25); rot("t5", X, 15)
+
+def rub(stage):
+    """Sitting side-on, head tilted and pushed forward to rub cheeks with the other cat, eyes closed."""
+    sit({})
+    rot("neckb", X, -10); rot("neck", X, -6)
+    rot("head", Y, 22 if stage == 1 else 10); rot("head", Z, 10 if stage == 1 else -6)

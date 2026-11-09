@@ -21,8 +21,9 @@ COATS = eval(bpy.data.texts["coats.py"].as_string())
 
 FRONT = ["sit", "blink", "think", "talk", "talk2", "worried", "wave1", "wave2", "yawn", "lick1", "lick2", "sleep"]
 SIDE = ["sit_s", "blink_s", "boop", "groom1", "groom2", "groomed"] + [f"walk{i}" for i in range(6)] + \
-       [f"run{i}" for i in range(4)] + ["sleep_s", "crouch", "pounce", "bat1", "bat2", "stretch"]
-FRONT += ["roll1", "roll2"]
+       [f"run{i}" for i in range(4)] + ["sleep_s", "crouch", "pounce", "bat1", "bat2", "stretch",
+                                         "eat1", "eat2", "drink1", "drink2", "scratch1", "scratch2", "arch", "rub1", "rub2"]
+FRONT += ["roll1", "roll2", "tail1", "tail2"]
 FRAMES = PICK or (FRONT + SIDE)
 
 sc = bpy.context.scene

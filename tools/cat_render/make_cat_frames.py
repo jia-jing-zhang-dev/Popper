@@ -1,13 +1,14 @@
 """Turn the Blender renders into the app's cat frames.
 
-    python tools/cat_render/make_cat_frames.py RENDER_DIR [TOYS_DIR]
+    python tools/cat_render/make_cat_frames.py RENDER_DIR [TOYS_DIR] [PROPS_DIR]
 
 RENDER_DIR is what render_all.py wrote: one folder per skin (<coat>_<type>/<frame>.png, 360 px renders from a
 fixed orthographic camera) and anchors_<type>.json (head and ear positions, 0..1 of the render). Every frame of
 every skin is cropped to the same box, so all cats share one scale and one ground line, scaled to CANVAS_H and
 saved as WebP (small, keeps alpha) in assets/cats/. meta.json gets the canvas size and the anchors in pixels.
 TOYS_DIR has <toy>_<n>.png renders from the same camera (rolling angles); they get the cats' scale, so a toy is
-the right size next to a cat, and go to assets/toys/ with their own meta.json.
+the right size next to a cat, and go to assets/toys/ with their own meta.json. PROPS_DIR (bowls, the
+scratching post, the bed; one frame each, <name>_0.png) is done the same way into assets/props/.
 """
 
 import json
@@ -22,7 +23,7 @@ CANVAS_H = 200   # stored frame height; the app scales it to the screen
 PAD = 6
 
 
-def main(src, toys=None):
+def main(src, toys=None, props=None):
     skins = sorted(d for d in os.listdir(src) if os.path.isdir(os.path.join(src, d)))
     # one crop box for everything: the union of what any frame covers
     box = None
@@ -56,11 +57,13 @@ def main(src, toys=None):
     print("canvas", canvas, "skins", len(skins))
     if toys:
         make_toys(toys, k)
+    if props:
+        make_toys(props, k, "props")
 
 
-def make_toys(src, k):
-    """Each toy's rolling frames, cropped to one box per toy, at the cats' scale."""
-    out = os.path.join(OUT, "..", "toys")
+def make_toys(src, k, folder="toys"):
+    """Each toy's (or object's) frames, cropped to one box per toy, at the cats' scale."""
+    out = os.path.join(OUT, "..", folder)
     os.makedirs(out, exist_ok=True)
     meta = {}
     names = sorted({f.rsplit("_", 1)[0] for f in os.listdir(src) if f.endswith(".png")})
@@ -77,8 +80,8 @@ def make_toys(src, k):
             im.crop(box).resize(size, Image.LANCZOS).save(os.path.join(out, f"{name}_{i}.webp"), "WEBP", quality=85, method=6)
         meta[name] = {"size": size, "frames": len(ims), "radius": round(size[1] / 2, 1)}
     json.dump(meta, open(os.path.join(out, "meta.json"), "w"), indent=1)
-    print("toys", meta)
+    print(folder, meta)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
+    main(*sys.argv[1:4])

@@ -22,6 +22,7 @@ import tkinter as tk
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageTk
 
+import furniture
 import toys
 from focus import idle_seconds
 from i18n import CAT, t
@@ -48,6 +49,10 @@ TOY_SIZE = 1.6         # toys drawn this much bigger than true scale, so they re
 MARKS = {"thinking": "?", "talking": "!", "sleepy": "Zz"}
 
 PLAY_FRAMES = ("crouch", "pounce", "bat1", "bat2", "stretch", "roll1", "roll2")
+LIFE_FRAMES = ("eat1", "eat2", "drink1", "drink2", "scratch1", "scratch2", "arch", "tail1", "tail2", "rub1", "rub2")
+HUNGER_HOURS = 4.0      # an empty stomach after this long
+THIRST_HOURS = 1.5
+MEAL = 0.25             # a meal takes this much of a full bowl
 WALK = [f"walk{i}" for i in range(6)]
 RUN = [f"run{i}" for i in range(4)]
 
@@ -97,6 +102,8 @@ class PetFeature(Feature):
         self.toys = []
         self.meta = load_meta()
         self.toy_meta = toys.load_meta()
+        self.prop_meta = furniture.load_meta()
+        self.items = {}
         self.director = None
         self.update_name()
         self.app.root.after(300, self.sync)
@@ -111,6 +118,59 @@ class PetFeature(Feature):
                     menu.add_command(label=t(f"menu_toy_{kind}"), command=lambda k=kind: self.drop_toy(k))
             if self.toys:
                 menu.add_command(label=t("menu_toys_away"), command=self.put_toys_away)
+        if self.items:
+            full = self.needs()["food"] >= 0.99
+            menu.add_command(label=t("menu_feed_full") if full else t("menu_feed"), command=self.feed,
+                             state="disabled" if full else "normal")
+
+    def can_live(self):
+        """The renders with eating, drinking, scratching... and the bowls, post and bed are there."""
+        return self.prop_meta is not None and all(f in self.meta["anchors"]["adult"] for f in LIFE_FRAMES)
+
+    # ---------- food, water, and what the cats need
+
+    def needs(self):
+        """{"food": bowl 0..1, "hunger": [per cat], "thirst": [per cat]}, brought up to date."""
+        n = self.app.settings.get("pet_needs") or {"food": 1.0, "hunger": [0.3, 0.5], "thirst": [0.2, 0.4], "t": time.time()}
+        now = time.time()
+        dt = max(0.0, now - n.get("t", now)) / 3600
+        n["hunger"] = [min(1.0, h + dt / HUNGER_HOURS) for h in n["hunger"]]
+        n["thirst"] = [min(1.0, h + dt / THIRST_HOURS) for h in n["thirst"]]
+        n["t"] = now
+        self.app.settings["pet_needs"] = n
+        return n
+
+    def feed(self):
+        """Fill the bowl; the cats come running and eat from either side."""
+        n = self.needs()
+        n["food"] = 1.0
+        n["hunger"] = [max(h, 0.6) for h in n["hunger"]]   # nobody turns down a freshly filled bowl
+        self.app.save()
+        bowl = self.items.get("food")
+        if not bowl:
+            return
+        bowl.show("foodfull")
+        if self.director and self.director.running:
+            self.director.end(*self.cats)
+        cats = sorted(self.cats, key=lambda c: c.centre())
+        sides = [-1, 1] if len(cats) == 2 else [-1 if cats[0].centre() < bowl.cx() else 1]
+        for cat, side in zip(cats, sides):
+            if not (cat.action and cat.action["kind"] in ("drag",)):
+                cat.go_eat(bowl, side)
+
+    def build_items(self):
+        spots = self.app.settings.get("pet_items") or {}
+        c = self.cats[0]
+        sw = c.top.winfo_screenwidth()
+        for name, (_, _, offset) in furniture.ITEMS.items():
+            x = spots.get(name)
+            item = furniture.Item(self, name, 0, c.ground - self.floor_gap(), self.base_scale())
+            if x is None:
+                x = c.x + c.w * 0.5 + offset * c.w - item.w / 2
+            item.x = max(0, min(x, sw - item.w))
+            item.place()
+            self.items[name] = item
+        self.items["food"].show("foodfull" if self.needs()["food"] > 0.01 else "foodempty")
 
     def can_play(self):
         """The renders with the play poses are there (older asset sets don't have them)."""
@@ -149,6 +209,16 @@ class PetFeature(Feature):
         self.toys = []
         self.app.settings["pet_toys"] = []
         self.app.save()
+
+    def startle(self, toy):
+        """A toy flying past fast makes a cat jump into an arch."""
+        if not self.can_live() or abs(toy.vx) < 900 * self.app.scale:
+            return
+        for c in self.cats:
+            busy = c.action and c.action["kind"] in ("together", "mood", "drag", "play", "arch")
+            if not busy and abs(toy.cx() - c.centre()) < c.w * 0.35:
+                c.do("arch", ["arch"], 1000, 1.2, facing=1 if toy.cx() > c.centre() else -1)
+                c.hop(0.08)
 
     def answer_tease(self, toy):
         """You're playing with a toy: the nearest cat drops what it's doing (naps included) and goes for it;
@@ -261,13 +331,19 @@ class PetFeature(Feature):
             for kind in self.app.settings.get("pet_toys") or []:
                 if kind in toys.KINDS:
                     self.drop_toy(kind, drop=False, x=self.cats[0].centre() + random.uniform(-260, 260) * self.app.scale)
+        if self.can_live():
+            self.build_items()
         self.last_tick = time.time()
+        self.last_save = time.time()
         self.tick()
 
     def teardown(self):
         for toy in self.toys:
             toy.top.destroy()
         self.toys = []
+        for item in self.items.values():
+            item.destroy()
+        self.items = {}
         self.cats[0].detach_card()
         for c in self.cats:
             c.top.destroy()
@@ -285,11 +361,21 @@ class PetFeature(Feature):
         now = time.time()
         dt = min(0.1, now - self.last_tick)
         self.last_tick = now
+        floor = self.cats[0].ground - self.floor_gap()
+        for item in self.items.values():
+            if item.ground != floor:
+                item.ground = floor
+                item.place()
         for toy in self.toys:
-            toy.ground = self.cats[0].ground - self.floor_gap()
+            toy.ground = floor
             toy.tick(dt)
             if toy.being_teased():
                 self.answer_tease(toy)
+            self.startle(toy)
+        if self.items and now - self.last_save > 60:   # hunger and thirst carry on while the app is closed
+            self.needs()
+            self.app.save()
+            self.last_save = now
         self.director.tick(now)
         for c in self.cats:
             c.tick(now)
@@ -406,7 +492,8 @@ class Cat:
         if self.hop_t:
             k = self.hop_t / 12
             lift = round(math.sin(math.pi * k) * self.h * self.hop_size)
-        self.top.geometry(f"{self.w}x{self.h}+{int(self.x)}+{int(self.ground - self.h - lift)}")
+        elev = self.action.get("elev", 0) if self.action else 0     # lying in the bed rests on its cushion
+        self.top.geometry(f"{self.w}x{self.h}+{int(self.x)}+{int(self.ground - self.h - lift - elev)}")
 
     def centre(self):
         return self.x + self.w / 2
@@ -417,10 +504,10 @@ class Cat:
 
     # ---------- actions: (frames, ms per frame, seconds) and optional movement
 
-    def do(self, kind, frames, ms, seconds=None, target=None, speed=0.0, facing=None, mark=None, then=None):
+    def do(self, kind, frames, ms, seconds=None, target=None, speed=0.0, facing=None, mark=None, then=None, elev=0.0):
         self.action = {"kind": kind, "frames": frames, "ms": ms, "start": time.time(),
                        "until": time.time() + seconds if seconds else None, "target": target,
-                       "speed": speed, "mark": mark, "then": then}
+                       "speed": speed, "mark": mark, "then": then, "elev": elev}
         if facing:
             self.facing = facing
         elif target is not None:
@@ -428,7 +515,7 @@ class Cat:
 
     def busy(self):
         a = self.action
-        return a and a["kind"] in ("together", "mood", "drag")
+        return a and a["kind"] in ("together", "mood", "drag", "eat", "drink")
 
     def sit(self, seconds):
         self.do("sit", ["sit"], 1000, seconds)
@@ -501,9 +588,15 @@ class Cat:
             roam = 260 if unobserved else 60    # the first cat carries the card: stay near where you put it
         sleepy = pets.drowsy() or idle > AWAY_IDLE
         playful = pets.can_play()
-        if playful and self.last_kind == "nap" and random.random() < 0.7:
+        living = pets.can_live() and pets.items
+        if living and self.look_after_itself():
+            return
+        if playful and self.last_kind == "nap" and random.random() < 0.75:
             self.last_kind = None
-            self.do("stretch", ["stretch"], 1000, random.uniform(1.4, 2.4), facing=random.choice((-1, 1)))
+            if living and random.random() < 0.4:
+                self.go_scratch(pets.items["post"])
+            else:
+                self.do("stretch", ["stretch"], 1000, random.uniform(1.4, 2.4), facing=random.choice((-1, 1)))
             return
         w = dict(self.personality)
         toy = self.reachable_toy() if playful else None
@@ -511,6 +604,9 @@ class Cat:
             w["play"] = (30 if unobserved else 6) * (4 if toy.recently_moved() else 1)
         if playful and unobserved and not sleepy:
             w["roll"] = 3
+        if living:
+            w["scratch"] = 5 if unobserved else 2
+            w["arch"] = 0.6 if unobserved else 0
         if sleepy:
             w["nap"] *= 8
         elif not unobserved:
@@ -525,7 +621,10 @@ class Cat:
                     w[k] *= 0.08
         kind = random.choices(list(w), list(w.values()))[0]
         if kind == "sit":
-            self.sit(random.uniform(4, 12))
+            if living and random.random() < 0.4:   # sitting with a slow swish of the tail
+                self.do("sit", ["tail1", "sit", "tail2", "sit"], random.choice((700, 900)), random.uniform(4, 10))
+            else:
+                self.sit(random.uniform(4, 12))
         elif kind == "groom":
             self.do("groom", ["lick1", "lick2"], random.choice((380, 420, 470)), random.uniform(3, 7))
         elif kind == "yawn":
@@ -534,7 +633,15 @@ class Cat:
             self.facing = random.choice((-1, 1))
             self.do("look", ["sit_s"], 1000, random.uniform(3, 7))
         elif kind == "nap":
-            self.do("nap", ["sleep"], 1000, random.uniform(60, 240) if sleepy else random.uniform(20, 90))
+            seconds = random.uniform(60, 240) if sleepy else random.uniform(20, 90)
+            if living and random.random() < 0.7:
+                self.nap_in_bed(pets.items["bed"], seconds)
+            else:
+                self.do("nap", ["sleep"], 1000, seconds)
+        elif kind == "scratch":
+            self.go_scratch(pets.items["post"])
+        elif kind == "arch":
+            self.do("arch", ["arch"], 1000, 1.2, facing=random.choice((-1, 1)))
         elif kind == "play":
             self.play(toy, rounds=random.randint(1, 3))
         elif kind == "roll":
@@ -546,6 +653,102 @@ class Cat:
     def other(self):
         cats = self.pets.cats
         return next((c for c in cats if c is not self), None)
+
+    # ---------- daily life: food, water, the post, the bed
+
+    def look_after_itself(self):
+        """Thirsty: a drink. Hungry: a meal, or with an empty bowl, sit by it and ask. True if it went."""
+        n = self.pets.needs()
+        i = min(self.index, len(n["hunger"]) - 1)
+        items = self.pets.items
+        if n["thirst"][i] > 0.6 and random.random() < 0.7:
+            self.go_drink(items["water"])
+            return True
+        if n["hunger"][i] > 0.55:
+            if n["food"] > 0.01:
+                self.go_eat(items["food"])
+                return True
+            if n["hunger"][i] > 0.75 and random.random() < 0.5:
+                self.beg(items["food"])
+                return True
+        return False
+
+    def go_to(self, x, then, run=False):
+        if abs(x - self.x) < 4:
+            then()
+        else:
+            self.walk_to(x, then=then, run=run)
+
+    def side_of(self, item):
+        return -1 if self.centre() < item.cx() else 1
+
+    def go_eat(self, bowl, side=None):
+        """Walk to the bowl (from `side`: -1 left, +1 right) and eat; the meal comes out of the bowl."""
+        side = side or self.side_of(bowl)
+        facing = -side
+        nose = bowl.cx() + side * bowl.w * 0.14
+        x = self.x_for_nose(nose, facing, "eat1")
+
+        def eat():
+            if self.pets.needs()["food"] <= 0.01:
+                return self.beg(bowl)
+            self.do("eat", ["eat1", "eat2"], random.choice((380, 430, 480)), random.uniform(6, 11), facing=facing, then=done)
+
+        def done():
+            n = self.pets.needs()
+            n["food"] = max(0.0, n["food"] - MEAL)
+            n["hunger"][min(self.index, len(n["hunger"]) - 1)] = 0.0
+            bowl.show("foodfull" if n["food"] > 0.01 else "foodempty")
+            self.app.save()
+            self.do("groom", ["lick1", "lick2"], 420, random.uniform(2, 4))   # a wash after a meal
+        self.go_to(x, eat, run=True)
+        if self.action and self.action["kind"] == "move":
+            self.action["kind"] = "eat"
+
+    def beg(self, bowl):
+        """Sit by the empty bowl, look at you and meow now and then."""
+        side = self.side_of(bowl)
+        x = bowl.cx() + side * (bowl.w * 0.5 + self.w * 0.25) - self.w / 2
+
+        def wait():
+            self.do("beg", ["sit", "sit", "talk", "talk2", "sit", "sit", "sit"], 600, random.uniform(6, 12))
+        self.go_to(x, wait)
+
+    def go_drink(self, bowl):
+        side = self.side_of(bowl)
+        facing = -side
+        x = self.x_for_nose(bowl.cx() + side * bowl.w * 0.10, facing, "drink1")
+
+        def drink():
+            self.do("drink", ["drink1", "drink2"], 340, random.uniform(3, 6), facing=facing, then=done)
+
+        def done():
+            n = self.pets.needs()
+            n["thirst"][min(self.index, len(n["thirst"]) - 1)] = 0.0
+            self.app.save()
+        self.go_to(x, drink)
+        if self.action and self.action["kind"] == "move":
+            self.action["kind"] = "drink"
+
+    def go_scratch(self, post):
+        side = self.side_of(post)
+        facing = -side
+        x = self.x_for_nose(post.cx() + side * post.w * 0.22, facing, "scratch1")
+
+        def scratch():
+            self.do("scratch", ["scratch1", "scratch2"], 300, random.uniform(3, 5.5), facing=facing)
+        self.go_to(x, scratch)
+
+    def nap_in_bed(self, bed, seconds, offset=0.0, then=None, kind="nap"):
+        """Curl up in the bed: lifted onto its cushion, with the front of the rim in front of the cat."""
+        x = bed.cx() + offset - self.w / 2
+
+        def lie():
+            self.facing = random.choice((-1, 1)) if not offset else (1 if offset < 0 else -1)
+            self.do(kind, ["sleep_s"], 1000, seconds, facing=self.facing, elev=bed.cushion(), then=then)
+            self.place()
+            bed.keep_front_on_top()
+        self.go_to(x, lie)
 
     # ---------- playing with a toy
 
@@ -761,6 +964,7 @@ class Director:
             return   # while you're working they mostly leave each other alone
         ball, yarn = self.pets.toy("ball"), self.pets.toy("yarn")
         games = {"boop": 4, "groom": 3, "chase": 2 if unobserved else 0, "cuddle": 1,
+                 "rub": 3 if self.pets.can_live() else 0,
                  "pingpong": 5 if ball and unobserved else 0, "yarn_race": 4 if yarn and unobserved else 0}
         choice = random.choices(list(games), list(games.values()))[0]
         if choice == "groom":
@@ -769,6 +973,8 @@ class Director:
             self.pingpong(a, b, ball)
         elif choice == "yarn_race":
             self.yarn_race(a, b, yarn)
+        elif choice == "rub":
+            self.rub(*random.sample((a, b), 2))
         else:
             getattr(self, choice)(a, b)
 
@@ -846,7 +1052,28 @@ class Director:
         runner.do("together", ["sit_s", "boop"], 900, facing=runner.facing)
         self.later(2700, lambda: self.end(runner, chaser))
 
+    def rub(self, rubber, other):
+        """One walks up and rubs its cheek against the other's, eyes closed."""
+        self.begin("rub")
+
+        def go():
+            self.face_each_other(rubber, other)
+            rubber.do("together", ["rub1", "rub2"], 520, facing=rubber.facing)
+            other.do("together", ["groomed"], 1000, facing=other.facing)
+            self.later(random.uniform(2500, 4500), lambda: self.end(rubber, other))
+        self.meet(rubber, other, go, gap=0.52)
+
     def cuddle(self, a, b):
+        bed = self.pets.items.get("bed") if self.pets.can_live() else None
+        if bed:   # both curl up in the bed
+            self.begin("cuddle")
+            seconds = random.uniform(90, 300)
+            for cat, off in ((a, -bed.w * 0.16), (b, bed.w * 0.16)):
+                cat.nap_in_bed(bed, seconds, offset=off, kind="together")
+                if cat.action:
+                    cat.action["kind"] = "together"
+            self.later(seconds * 1000, lambda: self.end(a, b))
+            return
         self.begin("cuddle")
         mover, still = (b, a)   # the second cat comes to the first
 
