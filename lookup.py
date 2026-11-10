@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 import urllib.parse
 import urllib.request
 
@@ -16,6 +17,56 @@ def http_json(url, timeout=6):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+GOOGLE_PAUSE = 10 * 60      # after Google refuses (429, network), leave it alone this long
+google_paused_until = 0.0
+
+
+def translate(text, source, target, hl, guess=None):
+    """Google first. When Google is unavailable (it rate-limits the free endpoint with HTTP 429), don't keep
+    knocking: pause it for GOOGLE_PAUSE and translate with other free services meanwhile (`fallback`)."""
+    global google_paused_until
+    if time.time() >= google_paused_until:
+        try:
+            return google(text, source, target, hl)
+        except Exception:
+            google_paused_until = time.time() + GOOGLE_PAUSE
+    return fallback(text, source, target, guess)
+
+
+def fallback(text, source, target, guess=None):
+    """Same shape as google(), from Youdao (English <-> Chinese words) or MyMemory (any pair, a free public API).
+    No dictionary senses or romanization from here; Youdao still adds IPA and senses for English words later."""
+    src = source if source != "auto" else ("zh-CN" if CJK_RE.search(text) else (guess or "en"))
+    if {normalize(src), normalize(target)} == {"en", "zh-CN"} and len(text.split()) <= 3:
+        main = youdao_meaning(text)
+        if main:
+            return {"main": main, "senses": [], "src_roman": "", "tgt_roman": "", "detected": src}
+    pair = urllib.parse.quote(f"{src}|{target}")
+    data = http_json(f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(text)}&langpair={pair}")
+    main = (data.get("responseData") or {}).get("translatedText") or ""
+    if not main or data.get("quotaFinished"):
+        raise RuntimeError("no translation service available")
+    return {"main": main, "senses": [], "src_roman": "", "tgt_roman": "", "detected": src}
+
+
+def youdao_meaning(text):
+    """A short Chinese meaning from Youdao for an English word (or an English one for a Chinese word)."""
+    try:
+        data = http_json("https://dict.youdao.com/jsonapi?q=" + urllib.parse.quote(text), timeout=5)
+    except Exception:
+        return ""
+    try:
+        if CJK_RE.search(text):   # Chinese -> English: the first English word Youdao offers
+            return data["ce"]["word"][0]["trs"][0]["tr"][0]["l"]["i"][0]["#text"]
+        entry = data["ec"]["word"]
+        entry = entry[0] if isinstance(entry, list) else entry
+        line = entry["trs"][0]["tr"][0]["l"]["i"][0]
+    except (KeyError, IndexError, TypeError):
+        return ""
+    line = re.sub(r"^[a-z]+\.\s*", "", line)        # drop "adj. "
+    return re.split(r"[；;，,]", line)[0].strip()
 
 
 def google(text, source, target, hl):
@@ -75,11 +126,11 @@ def look_up(text, learn, native):
     (or "*") to a pronunciation guide. Selecting text in your own language gives
     you the word in the language you are learning, and that is what gets spoken.
     """
-    first = google(text, "auto", native, native)
+    first = translate(text, "auto", native, native, guess=learn)
     detected = normalize(first["detected"])
 
     if same_language(detected, native) and not same_language(native, learn):
-        result = google(text, detected, learn, native)
+        result = translate(text, detected, learn, native)
         trans = result["main"]
         # "Bonjour" may be detected as English; if translating it into French gives it back
         # unchanged, it was French all along, so fall through to the normal path.
@@ -97,7 +148,7 @@ def look_up(text, learn, native):
     source = detected
     if source is None or (source in LATIN_SCRIPT and learn in LATIN_SCRIPT):
         source = learn
-    result = first if source == first["detected"] else google(text, source, native, native)
+    result = first if source == first["detected"] else translate(text, source, native, native)
 
     pron, senses = {}, result["senses"]
     if source == "en":
