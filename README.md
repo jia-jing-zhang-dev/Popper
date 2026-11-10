@@ -1,108 +1,77 @@
 # Desktop Study Cats
 
-**Two realistic cats live on your Windows desktop and keep you company while you study: instant word lookup, review, goals and study time, with a cat that cheers you on.**
+**Two realistic cats live on your Windows desktop and keep you company while you study. Select a word in any app and tap Ctrl+Shift to look it up; review it later, focus in pomodoros that earn the cats their dinner, and get a study report by email every day.**
 
-Desktop Study Cats starts with one thing: select a word in any app (a novel, a PDF, a web page, a subtitle)
-and tap **Ctrl+Shift**. A small card pops up with the translation and pronunciation, and you hear
-the word read aloud. Then you go back to reading.
+![Desktop Study Cats: looking up a word in a paper, the cats playing, being petted, and a pomodoro that feeds them](docs/demo.gif)
 
-Around that card, the app grows features you can switch on or off: spaced-repetition review of the
-words you looked up, long-term goals and dated to-dos with stopwatches, a library check-in, and a
-journal that collects every day into one page you can reflect on. Each feature is one module, so
-adding the next one doesn't touch the rest (see [Adding a feature](#adding-a-feature)).
+<sub>Recorded for real on Windows 11 with the app's own windows and a real Edge window. The paper is an example written for the demo. See [How the demo was made](#how-the-demo-was-made).</sub>
 
-![Desktop Study Cats demo (recorded before the cats): looking up words while reading Pride and Prejudice](docs/demo.gif)
-
-▶ **[Watch the full demo with narration](docs/demo.mp4)** (2:04): English and Spanish books,
-screenshot OCR, settings, and spaced-repetition review.
+| | |
+| --- | --- |
+| ![The daily study report email](docs/report.png) | ![The Cats window: a name, coat and body for each cat](docs/cats-window.png) |
+| **A report in your inbox every day**: when you studied, where the time went, what you finished and looked up, and a note from your cat. | **Pick your cats**: 8 coats, 4 body types, a name each. Either one can carry the card. |
+| ![The bond window: level, wardrobe and what earned it](docs/bond.png) | ![A journal page: tasks, words, pomodoros, reflection](docs/journal.png) |
+| **The bond grows with practice**, never shrinks, and unlocks things for your cat to wear. | **A journal page for every day**, written by your features and finished by you. |
 
 ## What it does
 
-### Word lookup (always on)
+### The cats
 
-- **Works in every app.** Select text anywhere, then tap Ctrl+Shift. Text you can't select
-  (images, scanned PDFs, video frames) works too: snip it with Win+Shift+S and the app reads
-  it with Windows' built-in OCR.
-- **Hear it right away.** Natural neural voices (Microsoft Edge TTS) with regional accents: US,
-  UK or Australian English; Spain or Mexico Spanish; Brazil or Portugal Portuguese; and more.
-- **More than a translation.** You get IPA for English, romanization for languages like Chinese
-  (pinyin), Japanese (romaji) and Russian, and dictionary senses grouped by part of speech.
-- **12 languages, either direction.** Choose the language you're learning and the language to
-  translate into. Select text in *your own* language and you get it in the language you're
-  learning, spoken aloud.
-- **Two cats on your desktop.** Realistic cats with real fur live along the bottom of the screen. The first
-  carries the card as its speech bubble and shows its moods (thinking, talking, worried, celebrating,
-  sleepy); click it to hear the word again, drag either one to move it, and stroke one (move the mouse back and
-  forth over it) to pet it: it turns and looks at you, eyes closing with pleasure and hearts over its head (or
-  rolls over for a belly rub), melts down and lies there if you keep going, and a sleeping or eating cat just carries on with hearts. Click either cat and it
-  turns to you and meows. They sit about, blink, groom, yawn, nap and wander; while you work they stay calm but
-  still drop by to touch noses or groom each other, and when you step away they also groom each other, chase, and nap cuddled up. They stretch after a nap and roll over when they're
-  happy. Right-click → **Toss in the yarn ball / bell ball** and a toy drops onto the desktop: the cats stalk it,
-  pounce, swat it about, bat the ball back and forth between them or race for the yarn. Drag a toy to tease them
-  (let go to throw it). They have a food bowl, a water bowl, a scratching post and a bed on the desktop floor
-  (drag them where you like, or right-click → **Put the bowls, post and bed away**): they drink when thirsty, scratch the post, nap in the bed (cuddled up together
-  too), swish their tails, arch when something whizzes past and rub cheeks with each other. They get hungry over
-  a few hours, and every bowlful is earned with a pomodoro (see below): right-click → **Feed the cats** fills the
-  bowl and they come and eat from either side. With an
-  empty bowl, a hungry cat sits by it and meows at you. Right-click → **Cats…** names each cat and picks its coat
-  (8) and body (adult, kitten, slim, longhair), hands the card to the other cat (**Let … carry the card**), or turns the second cat off. Turn them off in Settings →
-  Features to get the plain card back.
-- **A face on the card** (when the desktop cats are off). A little bubble that blinks, thinks while the study buddy is
-  working, opens its mouth when it has a question, looks worried when you haven't studied, dozes when
-  paused, and celebrates when you finish something.
-- **A card that stays put.** The card sits quietly in a corner. Click it to hear the word again,
-  drag it anywhere, and right-click it for everything else.
+- **They live their own lives.** They sit about, blink, groom, yawn, nap and wander along the bottom of
+  the screen. While you work they stay calm and only drop by to touch noses; when you step away they chase
+  each other, play and nap cuddled up in their bed.
+- **They answer you.** Click either cat and it turns to you and meows. Stroke one (move the mouse back
+  and forth over it): it closes its eyes with pleasure, hearts float up, and if you keep going it melts down
+  and lies there. A sleeping or eating cat just carries on with hearts.
+- **Toys and a home.** Right-click → **Toss in the yarn ball / bell ball**: they stalk it, pounce, bat it
+  between them or race for the yarn; drag a toy to tease them and let go to throw it. A food bowl, a water
+  bowl, a scratching post and a bed sit on the desktop floor (drag them anywhere, or put them away).
+- **They get hungry, and you feed them by studying.** Every bowlful is earned with a finished pomodoro.
+  With an empty bowl, a hungry cat sits by it and looks at you.
+- **The first cat carries the card** as its speech bubble and shows its moods. Right-click → **Cats…**
+  names them, picks coats and bodies, hands the card to the other cat, or turns the second one off.
 
-### Features (each can be turned off in Settings)
+### Looking words up
 
-- **Study buddy (Claude).** A slightly fussy friend to chat with while you study. It runs Claude
-  Code in the background with the Claude login already on your computer (no API key) and reads none
-  of your files. Mornings bring deadline countdowns from your goals, evenings a nudge if you barely
-  studied, and once a day it shares something new, picked from what you've been curious about.
-  Quiet 23:00-08:00. Your messages and the titles of the study windows you have open go to Claude.
-  Off by default.
-- **The cat's bond.** Studying brings you closer to your cat. Word review (a forgotten word still counts),
-  finished tasks and goals, library visits and study time (capped per day) earn ♥. Levels unlock a nickname the cat calls you and things it wears (sprout,
-  bow, grad cap, star clip, crown), and the desktop pet grows a little. The bond never goes down and there's
-  no streak to lose, so rest days are fine. Points tied to practice rather than time, and no loss-framed
-  streaks, follow the research on rewards and motivation (self-determination theory).
-- **Word list and review.** Every lookup goes into a local SQLite word list. Review uses
-  flash cards with growing intervals (1 → 2 → 4 → 7 → 15 → 30 → 60 days). Search, delete and
-  export to CSV (opens in Excel, and imports into Anki).
-- **Goals & to-dos.** Long-term goals (deadline from a calendar, countdown, tasks done and time
-  spent) and tasks you can plan for any day, attach to a goal and time with a stopwatch.
-  Finishing a task or a goal pops up a small celebration with how many days it took since you
-  wrote it down.
-- **Pomodoros that feed the cats.** Right-click → **Start round 1 of today**: 25 minutes of focus, then a
-  5-minute break. There's no ticking countdown: the card shows today's rounds as dots (●●● ◑), the current one
-  filling up like a moon, and clicking them says which round it is and roughly how far along ("about halfway"). After every fourth round the break is 15 minutes. Each finished pomodoro earns the cats one meal
-  (up to 3 saved up); click the card when it's done to fill their bowl. Stopping early earns nothing. Pick
-  25+5, 45+10, 50+10 or 15+3 in Settings; finished pomodoros show in the journal.
+- **Works in every app.** Select text anywhere and tap **Ctrl+Shift**. Text you can't select (images,
+  scanned PDFs, video frames) works too: snip it with **Win+Shift+S** and Windows' own OCR reads it.
+- **Hear it right away**, in natural neural voices (Microsoft Edge TTS) with regional accents.
+- **More than a translation**: IPA for English, pinyin, romaji and other romanizations, and dictionary
+  senses by part of speech.
+- **12 languages, either direction.** Select text in your own language and you get it in the one you're learning.
+- **Stays out of your way.** A plain Ctrl+C never triggers it, your clipboard is restored afterwards, and
+  you can pause it.
+
+### Studying
+
+- **Pomodoros without a ticking clock.** Right-click → **Start round 1 of today**: 25 minutes of focus,
+  then a break (15 minutes after every fourth round). The card shows today's rounds as dots (●●● ◑), the
+  current one filling up like a moon. The card hints at what's next instead of giving orders ("Tiger curls up
+  beside you", "Tiger's tummy is rumbling…") and a hungry cat goes to sit by its bowl. 25+5, 45+10, 50+10 or 15+3 in Settings.
+- **Word review** with flash cards on growing intervals (1 → 2 → 4 → 7 → 15 → 30 → 60 days). Search,
+  delete and export to CSV (opens in Excel, imports into Anki).
+- **Goals & to-dos.** Long-term goals with a deadline and countdown; tasks for any day with a stopwatch.
+  Finishing one pops up a small celebration.
 - **Study time, detected on its own.** The app notices which program or site is in front and whether
-  you're at the keyboard, and counts the time you actually study: VS Code, PDFs, Brightspace, Google
-  Docs and lectures count; YouTube, social apps and time away don't. A list of everything you used
-  lets you re-sort any program or site with one click, and past days are re-counted. Shows today,
-  this week and a 7-day chart, and adds a section to the journal. Only kept on your computer. Off by
-  default.
-- **Study reports by email.** Each day when you shut down, a report lands in your inbox: when you started and
-  stopped, real study time vs. time that slipped away, where (programs and sites), an hour-by-hour chart, the
-  tasks you finished, the words you looked up, your journal reflection, coming deadlines, and a short note from
-  your cat (written by Claude) comparing the day with your own recent days and suggesting one thing for tomorrow.
-  A weekly report comes on Monday and a monthly one on the 1st. If the computer went off before it could send,
-  the next start catches up. It sends from your own Gmail with an app password kept in Windows Credential
-  Manager (right-click → **Email study reports…**); it needs *Study time* on.
-- **Claude usage on the card.** A small badge shows how much of your Claude plan's 5-hour limit
-  is used (grey, yellow from 50%, red from 80%); click it for when it resets, or see every limit in
-  the menu. Read from Claude Code's `/usage` every 5 minutes, which uses no quota. Off by default.
-- **Library check-in.** One menu item checks you in or out, whichever applies. Checking in opens
-  your goals and to-dos. Checking out tells you how long you stayed and how many tasks you
-  finished. The library log has today / this week / your streak, a calendar heatmap, and the new
-  words and tasks done each day. Off by default.
-- **A journal to look back on.** One page per day with the tasks you finished and how long each
-  took, the new words you looked up (click to hear them), your library time, and a reflection you
-  write yourself. New features plug in as extra sections.
-- **Stays out of your way.** A plain Ctrl+C never triggers it, your clipboard is restored after a
-  lookup, and you can pause it from the menu.
+  you're at the keyboard: VS Code, PDFs, Brightspace, Google Docs and lectures count; YouTube, social apps
+  and time away don't. Re-sort any program with one click. Kept only on your computer.
+- **Study reports by email.** Each day when you shut down: when you started and stopped, real study time
+  vs. time that slipped away, where, an hour-by-hour chart, what you finished and looked up, your
+  reflection, coming deadlines, and a short note from your cat (written by Claude) that compares the day only
+  with your own recent days. A weekly report on Mondays, a monthly one on the 1st. Sent from your own Gmail
+  with an app password kept in Windows Credential Manager.
+- **The cat's bond.** Word review, finished tasks and goals, library visits and study time earn ♥. Levels
+  unlock a nickname and things to wear (sprout, bow, grad cap, star clip, crown). It never goes down and
+  there's no streak to lose, so rest days are fine: rewards tied to practice, not loss-framed streaks, as
+  the research on motivation suggests.
+- **A journal** with one page per day: tasks and their times, new words (click to hear them), pomodoros,
+  library time, and a reflection you write.
+- **Study buddy (Claude).** A slightly fussy friend to chat with. It runs Claude Code with the login
+  already on your computer (no API key) and reads none of your files. Off by default.
+- **Library check-in**, with a log, a calendar heatmap and your streak, and **Claude usage on the card**
+  (how much of your 5-hour limit is used). Both off by default.
+
+Every feature can be switched off in **Settings → Features**.
 
 ## Quick start
 
@@ -115,50 +84,41 @@ cd desktop-study-cats
 setup.bat
 ```
 
-`setup.bat` creates a virtual environment, installs the three dependencies and starts the app.
-The card appears in the bottom-right corner of your screen. After that, start it with `run.bat`,
-or turn on **Start with Windows** in Settings.
+`setup.bat` creates a virtual environment, installs the dependencies and starts the app. The cats appear
+at the bottom of your screen. After that, start it with `run.bat`, or turn on **Start with Windows** in Settings.
 
 ### Standalone app (no Python needed)
-
-To give the app to someone who doesn't have Python, build a self-contained folder:
 
 ```bat
 .venv\Scripts\python -m pip install pyinstaller
 .venv\Scripts\python packaging\build.py
 ```
 
-This creates `dist\DesktopStudyCats-windows.zip` (about 21 MB) with `DesktopStudyCats.exe` and a bilingual
-how-to. The packaged app keeps its settings and word list in `%APPDATA%\Word Popper` (an old name, kept so data stays put). It isn't
-code-signed, so the first time it runs Windows SmartScreen asks for confirmation
-(**More info → Run anyway**).
+This creates `dist\DesktopStudyCats-windows.zip` with `DesktopStudyCats.exe` and a how-to. The packaged app
+keeps its data in `%APPDATA%\Word Popper` (an old name, kept so data stays put). It isn't code-signed yet, so
+Windows SmartScreen asks the first time (**More info → Run anyway**).
 
 ## How to use it
 
 | You want to… | Do this |
 | --- | --- |
-| Look up a word, phrase or sentence | Select it, then tap **Ctrl+Shift** (press both, release, nothing else) |
+| Look up a word, phrase or sentence | Select it, then tap **Ctrl+Shift** (press both, release) |
 | Look up text you can't select | **Win+Shift+S** and snip just the word |
-| Hear it again | Left-click the card |
-| Move the card | Drag it |
+| Hear it again | Click the card, or the cat carrying it |
+| Pet a cat | Move the mouse back and forth over it |
+| Focus and earn the cats a meal | Right-click → **Start round … of today**, then click the card when the cat smells dinner |
+| Toss in a toy | Right-click → **Toss in the yarn ball / bell ball** |
 | Review your words | Right-click → **Review**. Space shows the answer, **1** = forgot, **2** = knew it |
 | Browse, search, export | Right-click → **My words** |
-| Change languages, voice, speed, trigger | Right-click → **Settings…** |
+| Plan goals and tasks | Right-click → **Goals & to-dos** |
+| Get a study report by email | Right-click → **Email study reports…**, fill in your Gmail and an app password, **Send a test now** |
+| Look back on a day | Right-click → **Journal…** |
+| Change languages, voice, pomodoro length | Right-click → **Settings…** |
 | Stop it for a while | Right-click → **Pause** |
-| Check in / out at the library | Right-click → **Library check-in** (turn on *Library check-in* in Settings first) |
-| Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
-| See your library time and streak | Right-click → **Library log…** |
-| Focus for 25 minutes and earn the cats a meal | Right-click → **Start round … of today**, then click the card when it's done |
-| Get a study report by email every day, week and month | Right-click → **Email study reports…**, fill in your Gmail and an app password, **Send a test now** |
-| Look back on a day and write a reflection | Right-click → **Journal…** |
-| Chat with the study buddy | Right-click → **Chat with Tiger…** (the first cat's name), or click the card when it says the cat has a message |
 
-Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into
-your word list.
+Sentences are translated and read aloud, but only words and short phrases (up to 4 words) go into your word list.
 
 ## Languages
-
-You can learn and translate between any of these:
 
 | Language | Voices | Pronunciation guide |
 | --- | --- | --- |
@@ -174,54 +134,48 @@ You can learn and translate between any of these:
 | Russian | Russia | Transliteration |
 | Vietnamese | Vietnam | — |
 
-The interface is available in English and Simplified Chinese. To add another language, add a
-block to [`i18n.py`](i18n.py) and an entry to [`languages.py`](languages.py).
-
-For screenshot OCR in a language other than English, Windows needs that language's OCR pack:
-**Settings → Time & language → Language & region → Add a language**.
+The interface is in English or Simplified Chinese. To add another language, add a block to
+[`i18n.py`](i18n.py) and an entry to [`languages.py`](languages.py). For screenshot OCR in a language other
+than English, Windows needs that language's OCR pack (**Settings → Time & language → Language & region**).
 
 ## Settings
 
 | Setting | What it does |
 | --- | --- |
 | Interface language | English or Simplified Chinese |
-| I'm learning | The language you read in. Spoken with the voice below |
-| Translate into | Your own language |
-| Voice | Regional accent for the language you're learning |
-| Speech speed | Slow, relaxed, normal or fast |
+| I'm learning / Translate into | The language you read in, and your own |
+| Voice, speech speed | Regional accent and speed for the language you're learning |
+| Text size | Card and window text |
 | Look up a word by | *Ctrl+Shift tap* (default) or *Copying (Ctrl+C)* |
 | Translate screenshots | Turn Win+Shift+S OCR on or off |
 | Start with Windows | Adds or removes a shortcut in your Startup folder |
-| Features | Turn word review, goals & to-dos, study time, library check-in and the journal on or off. A library session you forget to end stops after 8 hours |
+| Pomodoro | 25+5, 45+10, 50+10 or 15+3 minutes |
+| Features | Turn each feature on or off |
 
-Settings are saved in `settings.json` and your words in `vocab.db`, both next to the script.
-Set the `WORD_POPPER_HOME` environment variable to keep them somewhere else.
+Settings are saved in `settings.json` and your data in `vocab.db`, both next to the script. Set the
+`WORD_POPPER_HOME` environment variable to keep them somewhere else.
 
 ## Privacy
 
-The app has no account, no server and no telemetry. To do its job, it sends the text you
-look up to these services:
+No account, no server, no telemetry. To do its job, the app sends the text you look up to:
 
 - **Google Translate** (public web endpoint) for translation, dictionary senses and romanization
 - **Youdao Dictionary** for English ↔ Chinese phonetics and definitions
 - **Microsoft Edge text-to-speech** for the voices
 
-Nothing else leaves your computer. OCR runs locally on Windows' own engine, and your word list is
-a local file.
+The optional study buddy and report notes go through your own Claude Code login, and reports go out
+through your own Gmail. Study-time tracking stores only program and site names (never window titles)
+on your computer. OCR runs locally.
 
 ## Troubleshooting
 
-- **Ctrl+Shift also switches my keyboard layout.** Windows uses Ctrl+Shift to switch keyboard
-  layouts when you have more than one installed. Either turn that off (**Settings → Time &
-  language → Typing → Advanced keyboard settings → Input language hot keys**) or set *Look up a
-  word by* to *Copying (Ctrl+C)*.
-- **No sound.** Edge voices need an internet connection. Offline, the app falls back to the
-  built-in Windows voice.
-- **"No text selected".** Some apps (games, some terminals) don't support copying. Use
-  Win+Shift+S instead.
-- **Nothing happens in an app running as administrator.** Windows blocks keystrokes sent from a
-  normal app to an elevated one, so the app can't copy the selection there. Run the app as
-  administrator too, or use a screenshot.
+- **Ctrl+Shift also switches my keyboard layout.** Turn that off (**Settings → Time & language → Typing →
+  Advanced keyboard settings → Input language hot keys**) or set *Look up a word by* to *Copying (Ctrl+C)*.
+- **No sound.** Edge voices need an internet connection; offline, the app falls back to the Windows voice.
+- **"Translation failed".** The free translation endpoint limits how often you can ask; wait a few minutes.
+- **"No text selected".** Some apps don't support copying. Use Win+Shift+S instead.
+- **Nothing happens in an app running as administrator.** Windows blocks keystrokes from a normal app to an
+  elevated one. Run this app as administrator too, or use a screenshot.
 
 ## Project layout
 
@@ -229,43 +183,46 @@ a local file.
 word_popper.py      the card, hotkey, clipboard watching and lookup flow
 lookup.py           translation (Google), dictionary (Youdao), OCR (Windows.Media.Ocr)
 speech.py           Edge TTS with an mp3 cache; SAPI fallback
+features/pet.py     the desktop cats: actions, petting, the two cats together
+furniture.py        bowls, scratching post and bed; toys.py: the yarn and bell balls
+cat_skins.py        the Cats window (names, coats, bodies)
+features/pomodoro.py  pomodoros that earn the cats their meals
+report.py           daily / weekly / monthly study reports by email
 vocab.py            SQLite word list, review window, word-list window
-library.py          library check-in sessions, streaks, goals and to-dos, and their windows
-journal.py          day-by-day journal built from each feature's sections, with written reflections
+library.py          library check-in, goals and to-dos, and their windows
+journal.py          day-by-day journal built from each feature's sections
 focus.py            study-time detection: foreground window + idle time, rules, the study-time window
-buddy.py            study buddy: runs `claude -p`, the chat window, its tables
-bond.py             the cat's bond: points, levels, accessories, the bond window
-features/           one module per feature (review, todos, library, journal...); copy _template.py to add one
-settings_window.py  settings UI and Start-with-Windows shortcut
-languages.py        supported languages, voices, OCR tags
-i18n.py             interface strings
+buddy.py            study buddy: runs `claude -p`, the chat window
+bond.py             the cat's bond: points, levels, accessories
+features/           one module per feature; copy _template.py to add one
+tools/cat_render/   Blender scripts that render the cats' frames
+demo/               the script that records the demo above
 ```
 
 ## Adding a feature
 
 Everything beyond word lookup is a feature in [`features/`](features): a small class that can add
-right-click menu items, a window, a timer, and a section to each journal page. To add one, copy
-[`features/_template.py`](features/_template.py), add its strings in both languages to
-[`i18n.py`](i18n.py), and list it in [`features/__init__.py`](features/__init__.py). It then shows
-up in the menu, in Settings → Features, and in the journal. [`CLAUDE.md`](CLAUDE.md) has the details.
+right-click menu items, a window, a timer, and a section to each journal page. Copy
+[`features/_template.py`](features/_template.py), add its strings in both languages to [`i18n.py`](i18n.py),
+and list it in [`features/__init__.py`](features/__init__.py). It then shows up in the menu, in Settings →
+Features, and in the journal. [`CLAUDE.md`](CLAUDE.md) has the details.
 
 ## How the demo was made
 
-The demo is recorded for real, with no mock-ups. [`demo/record.py`](demo/record.py) opens
-[`demo/book.html`](demo/book.html) full-screen (public-domain excerpts from *Pride and Prejudice*
-and *Don Quijote*), runs the app with a throw-away data folder, and drives the mouse and
-keyboard while ffmpeg records the screen. [`demo/edit.py`](demo/edit.py) adds the captions and
-key badges and a voice-over, and rebuilds the word audio from the app's own playback log. Where a
-narration line needs more room, the picture holds still so the narrator never talks over a word. To re-record:
+The GIF is a real recording of the app, not a mock-up. [`demo/record_cats.py`](demo/record_cats.py) runs
+the app with a throw-away data folder full of made-up study data, puts Windows' default wallpaper and the
+usual desktop icons behind it ([`demo/desktop_look.py`](demo/desktop_look.py), taken from the system at
+recording time), and opens a normal Edge window with a fresh profile on an example paper
+([`demo/paper.html`](demo/paper.html), written for the demo). Every step is driven from inside the app, so
+the real mouse and keyboard are never touched; the cursor you see is drawn. The word is selected by the
+browser itself and the translation is real. Before and during filming it checks that nothing but the demo
+is on screen and throws the recording away otherwise. ffmpeg records the area and adds the captions; the
+stills come from the same run.
 
 ```bat
 .venv\Scripts\python -m pip install -r demo\requirements.txt
-.venv\Scripts\python demo\make_assets.py
-.venv\Scripts\python demo\record.py
-.venv\Scripts\python demo\edit.py
+.venv\Scripts\python demo\record_cats.py
 ```
-
-Snipping Tool must be in **Rectangle** mode. The script switches it for you.
 
 ## Credits
 

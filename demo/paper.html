@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Retrieval Practice at Scale</title>
+<!-- An example paper written for the demo (text, authors and numbers are made up). -->
+<style>
+  :root { --ink: #1b1b1b; --muted: #666; --rule: #d8d8d8; }
+  html, body { margin: 0; background: #ffffff; color: var(--ink); }
+  body { font-family: "Latin Modern Roman", "CMU Serif", "Times New Roman", Georgia, serif; cursor: default; }
+  .sheet { max-width: 1020px; margin: 0 auto; padding: 34px 56px 40px; }
+  .stamp { font: 12px "Segoe UI", sans-serif; color: #8a8a8a; letter-spacing: .04em; text-align: right; margin-bottom: 8px; }
+  h1 { font-size: 30px; line-height: 1.25; text-align: center; font-weight: 600; margin: 6px 0 12px; }
+  .authors { text-align: center; font-size: 17px; line-height: 1.5; }
+  .affil { text-align: center; font-size: 14px; color: var(--muted); font-style: italic; margin-bottom: 18px; }
+  .abstract { margin: 0 46px 18px; font-size: 16px; line-height: 1.55; text-align: justify; }
+  .abstract b { display: block; text-align: center; font-size: 15px; margin-bottom: 6px; letter-spacing: .06em; }
+  .cols { column-count: 2; column-gap: 34px; font-size: 16.5px; line-height: 1.55; text-align: justify; hyphens: auto; }
+  h2 { font-size: 17px; margin: 0 0 6px; font-weight: 600; break-after: avoid; }
+  p { margin: 0 0 10px; }
+  .eq { text-align: center; margin: 10px 0 12px; font-style: italic; font-size: 17px; }
+  .eq .n { float: right; font-style: normal; }
+  figure { margin: 6px 0 12px; break-inside: avoid; }
+  figcaption { font-size: 13.5px; line-height: 1.4; color: #333; margin-top: 4px; }
+  ::selection { background: #b5d5ff; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="sheet page active">
+  <div class="stamp">PREPRINT · EXAMPLE DOCUMENT · NOV 2026</div>
+  <h1>Retrieval Practice at Scale: Spacing, Feedback,<br>and Long-Term Vocabulary Retention</h1>
+  <div class="authors">Lin Zhou &nbsp;·&nbsp; Maya Patel &nbsp;·&nbsp; Daniel Okafor</div>
+  <div class="affil">Department of Computer Science and Learning Sciences Lab</div>
+  <div class="abstract"><b>ABSTRACT</b>
+    Second-language readers meet unfamiliar words constantly, yet looking a word up rarely leads to
+    remembering it. We study 41,000 learners who looked words up while reading and then reviewed them on an
+    expanding schedule. Spaced retrieval with immediate feedback is ubiquitous in the literature but is seldom
+    measured in the wild; here it roughly doubles thirty-day retention relative to massed review, and the
+    benefit is largest for words first met in context. We describe a lightweight model of memory consolidation
+    that predicts when each word should return.
+  </div>
+  <div class="cols">
+    <h2>1&nbsp;&nbsp;Introduction</h2>
+    <p>Reading in a second language is interrupted by unknown words. A dictionary lookup resolves the
+    immediate problem, but without later retrieval the meaning fades within days. The spacing effect, first
+    described over a century ago, suggests that reviews separated by growing intervals strengthen memory
+    far more than the same number of reviews in a row.</p>
+    <p>Prior studies are mostly laboratory experiments with fixed word lists. Learners in practice are
+    heterogeneous: they read different texts, look up different words and return on irregular days.</p>
+    <div class="eq">p(recall | t) = exp(−t / s<sub>w</sub>),&nbsp;&nbsp; s<sub>w</sub> ← α · s<sub>w</sub><span class="n">(1)</span></div>
+    <figure>
+      <svg viewBox="0 0 420 170" width="100%" role="img" aria-label="Retention curves">
+        <line x1="40" y1="10" x2="40" y2="140" stroke="#333"/><line x1="40" y1="140" x2="410" y2="140" stroke="#333"/>
+        <path d="M40 20 C 110 60, 200 92, 410 118" fill="none" stroke="#c0392b" stroke-width="2.4"/>
+        <path d="M40 20 C 120 30, 220 42, 410 52" fill="none" stroke="#1f6fb2" stroke-width="2.4"/>
+        <text x="300" y="112" font-size="12" fill="#c0392b">massed</text>
+        <text x="300" y="46" font-size="12" fill="#1f6fb2">spaced</text>
+        <text x="200" y="160" font-size="12" fill="#333">days since first lookup</text>
+        <text x="8" y="80" font-size="12" fill="#333" transform="rotate(-90 14 80)">recall</text>
+      </svg>
+      <figcaption><b>Figure 1.</b> Recall over thirty days for spaced and massed review (all learners).</figcaption>
+    </figure>
+    <h2>2&nbsp;&nbsp;Method</h2>
+    <p>Each lookup creates a card. A card returns after 1, 2, 4, 7, 15, 30 and 60 days while it is answered
+    correctly, and after one day when it is forgotten.</p>
+  </div>
+</div>
+
+<script>
+  const pages = [...document.querySelectorAll('.page')];
+  let current = 0;
+  // paper.html?select=ubiquitous&at=20000&report=pos: select each word (the browser's own highlight) that many
+  // ms after the page loads, clear it 4 s later; with report=pos the title briefly says where the first word is,
+  // so record_cats.py can point at it. Nobody touches the real mouse.
+  // the recorder serves this page with its settings in window.DEMO_QUERY, so the address bar stays clean
+  const params = new URLSearchParams(window.DEMO_QUERY || location.search);
+  const words = (params.get('select') || '').split(',').filter(Boolean);
+  const times = (params.get('at') || '').split(',').map(Number);
+  function rangeOf(word) {
+    const walker = document.createTreeWalker(pages[current], NodeFilter.SHOW_TEXT);
+    for (let node; (node = walker.nextNode());) {
+      const i = node.data.indexOf(word);
+      if (i < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + word.length);
+      return range;
+    }
+    return null;
+  }
+  words.forEach((word, k) => {
+    setTimeout(() => { const r = rangeOf(word); if (r) { getSelection().removeAllRanges(); getSelection().addRange(r); } }, times[k] || 0);
+    setTimeout(() => getSelection().removeAllRanges(), (times[k] || 0) + 4000);
+  });
+  if (params.get('report') === 'pos' && words.length) {
+    const shown = document.title;
+    const report = () => {
+      const range = rangeOf(words[0]);
+      if (!range) return;
+      const r = range.getBoundingClientRect();
+      // the word's centre in the page, the browser frame around the page (tabs, address bar), the pixel ratio
+      const frameX = (outerWidth - innerWidth) / 2, frameY = outerHeight - innerHeight - frameX;
+      document.title = `pos:${r.left + r.width / 2 + frameX},${r.top + r.height / 2 + frameY},${devicePixelRatio}`;
+      setTimeout(() => { document.title = shown; }, 1500);
+    };
+    addEventListener('load', report);
+    let timer;
+    addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(report, 300); });
+  }
+</script>
+</body>
+</html>

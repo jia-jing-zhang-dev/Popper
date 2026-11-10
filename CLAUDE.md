@@ -79,7 +79,7 @@ lists them in menu/Settings/journal order. Settings → Features turns each on o
 | `journal.py` | Journal store and window; a page is the sections of every feature that's on |
 | `settings_window.py` | Settings UI, Start-with-Windows shortcut |
 | `packaging/` | PyInstaller build of a standalone exe (see caveats) |
-| `demo/` | Scripts that recorded `docs/demo.mp4` / `docs/demo.gif` |
+| `demo/` | `record_cats.py` records `docs/demo.gif` and the `docs/*.png` stills in-process: a throw-away home with made-up data, Windows' default wallpaper and shell icons (`desktop_look.py`), a fresh-profile Edge window on `paper.html` (an example paper, served as `lab.example`), a drawn cursor, captions burnt in by ffmpeg. It never touches the real mouse or keyboard, and `only_demo_on_screen` refuses to film (and keeps checking every 2 s) if anything of the owner's is in the shot. The translation is fetched once before filming (the free endpoint returns 429 after heavy testing). Stop the owner's copy first: its cats would walk into the shot |
 
 ## Study buddy and Claude
 
