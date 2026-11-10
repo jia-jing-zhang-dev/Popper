@@ -4,8 +4,8 @@ When things go out (none of it can happen while the computer is off):
   - Shutting down after DAY_DONE_HOUR sends today's report (Windows gives a few seconds; the shutdown screen
     says why it waits). Before that hour a shutdown is usually a restart, so it waits.
   - Otherwise `catch_up` (a minute after start, then every 10 minutes) sends what's due: yesterday's report
-    once it's past NEW_DAY_HOUR, last week's on Monday, last month's on the 1st, plus a resend of a day that
-    gained RESEND_GAIN of study after its report went out ("updated").
+    once it's past NEW_DAY_HOUR, last week's on Monday, last month's on the 1st.
+Each day's report goes out once and is never resent, even if you study more after it (the owner asked).
 Each report carries a short note from the study buddy (Claude) when there's time to ask for one: the evening
 note is prepared ahead (after NOTE_HOUR) for the shutdown report; catch-up reports ask on the spot.
 What was sent is remembered in settings["report_sent"]; the addresses in settings, the app password in
@@ -29,7 +29,6 @@ from .base import Feature
 DAY_DONE_HOUR = 17      # a shutdown from this hour on counts as the end of the day
 NEW_DAY_HOUR = 4        # studying past midnight still belongs to yesterday until this hour
 NOTE_HOUR = 20          # from now on, prepare tonight's note for the shutdown report
-RESEND_GAIN = 15 * 60   # resend a day's report when it gained this much study after it went out
 CATCH_UP_MS = 10 * 60_000
 APP_PASSWORD_URL = "https://myaccount.google.com/apppasswords"
 NOTE_SYSTEM = """You are {name}, a cat who is a warm, honest study buddy for a university student. Write a short note \
@@ -71,8 +70,6 @@ class ReportFeature(Feature):
     def mark(self, kind, key, study=0, sent=True):
         s = self.sent()
         if kind == "day":
-            if key in s["day"] and sent:
-                s["updated"] = (s.setdefault("updated", []) + [key])[-14:]
             s["day"][key] = study
             for old in sorted(s["day"])[:-14]:
                 del s["day"][old]
@@ -91,7 +88,7 @@ class ReportFeature(Feature):
     # ---------- what's due
 
     def due(self, now=None, at_shutdown=False):
-        """[(kind, first, last, updated)] reports to send now."""
+        """[(kind, first, last)] reports to send now."""
         now = now or dt.datetime.now()
         c, sent, out = self.cfg(), self.sent(), []
         today = now.date()
@@ -103,20 +100,17 @@ class ReportFeature(Feature):
             else:
                 candidates = [today - dt.timedelta(days=2)]
             for day in candidates:
-                study = report.study_by_day(self.app, day, day)[day][0]
-                before = sent["day"].get(day.isoformat())
-                resent = day.isoformat() in sent.setdefault("updated", [])
-                if before is None or (not resent and study - before >= RESEND_GAIN):   # one "updated" copy at most
-                    out.append(("day", day, day, before is not None))
+                if day.isoformat() not in sent["day"]:
+                    out.append(("day", day, day))
         if not at_shutdown and now.hour >= NEW_DAY_HOUR:
             if c["weekly"]:
                 first, last = report.week_of(today - dt.timedelta(days=7))
                 if first.isoformat() not in sent["week"]:
-                    out.append(("week", first, last, False))
+                    out.append(("week", first, last))
             if c["monthly"]:
                 first, last = report.month_of(today.replace(day=1) - dt.timedelta(days=1))
                 if first.isoformat()[:7] not in sent["month"]:
-                    out.append(("month", first, last, False))
+                    out.append(("month", first, last))
         return out
 
     def key(self, kind, first):
@@ -132,9 +126,9 @@ class ReportFeature(Feature):
             return report.daily(self.app, first, note=note, data=data), data
         return report.period(self.app, kind, first, last, note=note, data=data), data
 
-    def deliver(self, built, updated=False, test=False):
+    def deliver(self, built, test=False):
         subject, body, summary, highlights = built
-        subject += (t("rep_updated") if updated else "") + (t("rep_test_tag") if test else "")
+        subject += t("rep_test_tag") if test else ""
         c = self.cfg()
         text = "\n".join(highlights) + "\n\n" + summary
         report.send(c["from"], report.load_password(), c["to"], subject, body, text)
@@ -149,7 +143,7 @@ class ReportFeature(Feature):
             if not rest:
                 self.sending = False
                 return
-            kind, first, last, updated = rest[0]
+            kind, first, last = rest[0]
             built, data = self.build(kind, first, last)
             if built is None:     # nothing happened that day: remember it, send nothing
                 self.mark(kind, self.key(kind, first), data["study"], sent=False)
@@ -164,7 +158,7 @@ class ReportFeature(Feature):
 
                 def work():
                     try:
-                        self.deliver(final, updated)
+                        self.deliver(final)
                         ok, err = True, None
                     except Exception as e:  # network, login... try again next round
                         ok, err = False, e
@@ -243,11 +237,11 @@ class ReportFeature(Feature):
             hwnd = user32.GetParent(self.app.root.winfo_id()) or self.app.root.winfo_id()
             user32.ShutdownBlockReasonCreate(hwnd, t("rep_shutdown"))
             try:
-                for kind, first, last, updated in items:
+                for kind, first, last in items:
                     note = self.note[2] if self.note and self.note[0] == first else None
                     built, data = self.build(kind, first, last, note=note)
                     if built:
-                        self.deliver(built, updated)
+                        self.deliver(built)
                     self.mark(kind, self.key(kind, first), data["study"], sent=bool(built))
             finally:
                 user32.ShutdownBlockReasonDestroy(hwnd)
