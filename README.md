@@ -2,9 +2,9 @@
 
 **Two realistic cats live on your Windows desktop and keep you company while you study. Select a word in any app and tap Ctrl+Shift to look it up; review it later, focus in pomodoros that earn the cats their dinner, and get a study report by email every day.**
 
-![Desktop Study Cats: looking up a word in a paper, the cats playing, being petted, and a pomodoro that feeds them](docs/demo.gif)
+![Desktop Study Cats in 70 seconds: looking words up in English, Spanish and Japanese, study time, the daily report, pomodoros that feed the cats, levelling up the bond](docs/demo.gif)
 
-<sub>Recorded for real on Windows 11 with the app's own windows and a real Edge window. The paper is an example written for the demo. See [How the demo was made](#how-the-demo-was-made).</sub>
+▶ **[Watch it in full quality (MP4)](docs/promo.mp4)** · <sub>Recorded for real on Windows 11 with the app's own windows and a real Edge window; the paper, notes and study data are examples made for the demo. See [How the demo was made](#how-the-demo-was-made).</sub>
 
 | | |
 | --- | --- |
@@ -12,6 +12,8 @@
 | **A report in your inbox every day**: when you studied, where the time went, what you finished and looked up, and a note from your cat. | **Pick your cats**: 8 coats, 4 body types, a name each. Either one can carry the card. |
 | ![The bond window: level, wardrobe and what earned it](docs/bond.png) | ![A journal page: tasks, words, pomodoros, reflection](docs/journal.png) |
 | **The bond grows with practice**, never shrinks, and unlocks things for your cat to wear. | **A journal page for every day**, written by your features and finished by you. |
+
+**At a glance:** look words up in any app, in 12 languages · counts the time you actually study · a study report in your inbox every evening · pomodoros that earn the cats their dinner · a bond with your cats that grows as you practise.
 
 ## What it does
 
@@ -209,19 +211,24 @@ Features, and in the journal. [`CLAUDE.md`](CLAUDE.md) has the details.
 
 ## How the demo was made
 
-The GIF is a real recording of the app, not a mock-up. [`demo/record_cats.py`](demo/record_cats.py) runs
+The promo is cut from two real recordings of the app, not mock-ups. [`demo/record_cats.py`](demo/record_cats.py)
+films a cats reel and a study-day reel (`DEMO_REEL=study`: Spanish and Japanese lookups on
+[`demo/notes.html`](demo/notes.html), the study-time window, the daily report, a level-up). It runs
 the app with a throw-away data folder full of made-up study data, puts Windows' default wallpaper and the
 usual desktop icons behind it ([`demo/desktop_look.py`](demo/desktop_look.py), taken from the system at
 recording time), and opens a normal Edge window with a fresh profile on an example paper
 ([`demo/paper.html`](demo/paper.html), written for the demo). Every step is driven from inside the app, so
 the real mouse and keyboard are never touched; the cursor you see is drawn. The word is selected by the
 browser itself and the translation is real. Before and during filming it checks that nothing but the demo
-is on screen and throws the recording away otherwise. ffmpeg records the area and adds the captions; the
-stills come from the same run.
+is on screen and throws the recording away otherwise; the stills come from the same run.
+[`demo/make_promo.py`](demo/make_promo.py) then cuts it like a product video: a hook, a title card, one numbered
+section per feature with punch-in zooms on the detail that matters, and an end card.
 
 ```bat
 .venv\Scripts\python -m pip install -r demo\requirements.txt
 .venv\Scripts\python demo\record_cats.py
+set DEMO_REEL=study && .venv\Scripts\python demo\record_cats.py
+.venv\Scripts\python demo\make_promo.py
 ```
 
 ## Credits

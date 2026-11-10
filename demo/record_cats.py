@@ -1,4 +1,8 @@
-"""Record the README demo (docs/demo.gif) and stills (docs/*.png) with the cats.
+"""Record the demo footage: the cats reel (docs/demo.gif, stills docs/*.png) or the study-day reel.
+
+    DEMO_REEL=cats  (default)  looking a word up, the cats playing, petting, a pomodoro that feeds them
+    DEMO_REEL=study            Spanish and Japanese lookups, study time, the daily report, a level-up
+    DEMO_DRY=3,9,15            no filming: screenshots at those seconds into the scenes (demo/_work/dry_*.png)
 
 Unlike record.py, nothing here touches the real mouse or keyboard: the app runs in this process with a
 throw-away data folder (demo/_work/home) full of made-up study data, every step is driven from inside
@@ -24,7 +28,9 @@ ROOT = os.path.dirname(HERE)
 WORK = os.path.join(HERE, "_work")
 HOME = os.path.join(WORK, "home")
 DOCS = os.path.join(ROOT, "docs")
-RAW = os.path.join(WORK, "cats_raw.mp4")
+REEL = os.environ.get("DEMO_REEL", "cats")
+DRY = [float(v) for v in os.environ.get("DEMO_DRY", "").split(",") if v]
+RAW = os.path.join(WORK, f"{REEL}_raw.mp4")
 
 ctypes.windll.shcore.SetProcessDpiAwareness(2)
 user32 = ctypes.windll.user32
@@ -61,7 +67,8 @@ os.makedirs(HOME)
 os.environ["WORD_POPPER_HOME"] = HOME
 mid = CAP_X + CAP_W // 2
 json.dump({
-    "ui_lang": "en", "learn": "en", "native": "zh-CN", "text_size": "large", "listening": True,
+    "ui_lang": "en", "learn": "en", "native": "zh-CN", "text_size": "large" if REEL == "cats" else "normal",
+    "listening": True,
     "features": {"pet": True, "bond": True, "buddy": False, "review": True, "todos": True, "pomodoro": True,
                  "focus": True, "library": False, "journal": True, "report": False, "usage": False},
     "pet_two": True, "pet_skins": ["B_adult", "G_kitten"], "pet_ground": GROUND,
@@ -75,17 +82,19 @@ os.chdir(ROOT)
 import word_popper  # noqa: E402
 import features.bond  # noqa: E402
 
-features.bond.LevelUp = lambda *a, **k: None   # the seeded data levels the bond up: no level-up card mid-film
+if REEL == "cats":
+    features.bond.LevelUp = lambda *a, **k: None   # the seeded data levels the bond up: no level-up card mid-film
 
-def fetch_translation(word, tries=12):
+def fetch_translation(word, learn="en", tries=12, need_roman=False):
     """Look the demo word up once before anything is filmed (the free translation endpoint rate-limits after a
     lot of testing: wait and try again). The card then shows this real result, without a second request."""
     import lookup
     for k in range(tries):
         try:
-            result = lookup.look_up(word, "en", "zh-CN")
-            if result and result.get("trans"):
+            result = lookup.look_up(word, learn, "zh-CN")
+            if result and result.get("trans") and (result.get("pron") or not need_roman):
                 return result
+            print(f"{word}: no pronunciation yet (Google still unavailable?)", flush=True)
         except Exception as e:  # HTTP 429 and friends
             print(f"translation not available yet ({e}); trying again in 2 min", flush=True)
         time.sleep(120)
@@ -93,7 +102,11 @@ def fetch_translation(word, tries=12):
     sys.exit(4)
 
 
-TRANSLATED = {"ubiquitous": fetch_translation("ubiquitous")}
+if REEL == "study":   # Japanese needs Google for its romaji: wait for it rather than film without
+    TRANSLATED = {"aprendizaje": fetch_translation("aprendizaje", "es"),
+                  "少しずつ": fetch_translation("少しずつ", "ja", need_roman=not DRY)}
+else:
+    TRANSLATED = {"ubiquitous": fetch_translation("ubiquitous")}
 _real_look_up = word_popper.look_up
 word_popper.look_up = lambda word, learn, native: TRANSLATED.get(word) or _real_look_up(word, learn, native)
 
@@ -135,7 +148,34 @@ def seed():
     for i in range(2):
         pomo.store.add(now - 3600 * (i + 2), now - 3600 * (i + 2) + 1500, 25)
     app.feature("bond").store.sync(app.feature("focus").log)   # straight to the store: no level-up card mid-film
+    if REEL == "study":
+        seed_study(now, today)
 
+
+def seed_study(now, today):
+    import bond
+    rows = []      # an app not sorted yet, used every day this week: it tops the list in the study-time window
+    for back in range(7):
+        start = dt.datetime.combine(today - dt.timedelta(days=back), dt.time(16, 20)).timestamp()
+        rows += [(int(start // 60) + i, "app:goodnotes.exe", 58.0) for i in range(55 if back == 0 else 45)]
+    db.executemany("INSERT OR IGNORE INTO focus_activity (minute, key, seconds) VALUES (?, ?, ?)", rows)
+    app.todos.add("Read: Retrieval practice paper")
+    STUDY["task"] = db.execute("SELECT MAX(id) FROM todos").fetchone()[0]
+    store = app.feature("bond").store
+    have = store.total()
+    nxt = max(9, bond.level_of(have)[0] + 1)              # level 9 unlocks the star clip
+    target = bond.level_start(nxt) - bond.TASK_POINTS + 1    # ticking the task reaches it
+    if have < target:
+        db.execute("INSERT OR IGNORE INTO bond_points (source, ref, ts, points) VALUES ('focus', 'demo-earlier', ?, ?)",
+                   (now - 86400 * 3, target - have))
+        db.commit()
+    app.settings["bond_seen_level"] = bond.level_of(store.total())[0]
+    app.settings["bond_hat"] = "cap"
+    app.feature("bond").restyle()
+    store.sync = lambda *a, **k: 0     # the app's own bond timer waits: the level-up comes on cue (m_levelup)
+
+
+STUDY = {}
 
 # ---------------------------------------------------------------- the desk, captions and a drawn cursor
 
@@ -161,6 +201,15 @@ SELECT_AT = 20000                                    # ms after the page loads t
 
 PAPER_PATH = "/papers/retrieval-practice"
 PAPER_QUERY = f"select=ubiquitous&at={SELECT_AT}&report=pos"
+NOTES_PATH = "/notes/week-11"
+NOTES_QUERY = f"select=aprendizaje,少しずつ&at={SELECT_AT},{SELECT_AT + 6000}&report=pos"
+REPORT_PATH = "/inbox/study-report"
+REPORT_HTML = [""]     # made on the Tk thread (sqlite), served by the server thread
+AUTOSCROLL = """<script>setTimeout(() => { const t0 = performance.now();
+  const H = document.documentElement.scrollHeight - innerHeight;
+  const f = n => { const k = Math.min(1, (n - t0) / 7500); scrollTo(0, H * k * k * (3 - 2 * k)); if (k < 1) requestAnimationFrame(f); };
+  requestAnimationFrame(f); }, 1500);</script>"""
+FIRST_PAGE = NOTES_PATH if REEL == "study" else PAPER_PATH
 
 
 def serve_demo_folder():
@@ -170,9 +219,15 @@ def serve_demo_folder():
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
-            if self.path.split("?")[0] == PAPER_PATH:   # the paper, with the demo's settings baked in
-                html = open(os.path.join(HERE, "paper.html"), encoding="utf-8").read()
-                html = html.replace("<script>", f"<script>window.DEMO_QUERY = {json.dumps(PAPER_QUERY)};", 1)
+            path = self.path.split("?")[0]
+            pages = {PAPER_PATH: ("paper.html", PAPER_QUERY), NOTES_PATH: ("notes.html", NOTES_QUERY)}
+            if path in pages or path == REPORT_PATH:   # the demo's pages, with their settings baked in
+                if path == REPORT_PATH:
+                    html = REPORT_HTML[0].replace("</body>", AUTOSCROLL + "</body>", 1)
+                else:
+                    name, query = pages[path]
+                    html = open(os.path.join(HERE, name), encoding="utf-8").read()
+                    html = html.replace("<script>", f"<script>window.DEMO_QUERY = {json.dumps(query)};", 1)
                 body = html.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -195,8 +250,9 @@ EDGE_PROFILE = os.path.join(WORK, "edge-profile")
 shutil.rmtree(EDGE_PROFILE, ignore_errors=True)
 edge_proc = subprocess.Popen([EDGE, f"--user-data-dir={EDGE_PROFILE}", "--no-first-run", "--no-default-browser-check",
                               "--disable-sync", "--force-device-scale-factor=1.25", "--new-window", "--test-type",
+                              "--disable-features=Translate,TranslateUI,msEdgeTranslate",
                               f"--host-resolver-rules=MAP lab.example 127.0.0.1:{PORT}",
-                              f"http://lab.example{PAPER_PATH}"])
+                              f"http://lab.example{FIRST_PAGE}"])
 edge = {"hwnd": None, "found": None, "word": None, "before": None}
 
 
@@ -213,7 +269,8 @@ def find_edge():
     @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
     def each(hwnd, _):
         title = window_title(hwnd)
-        if user32.IsWindowVisible(hwnd) and (title.startswith("pos:") or "Retrieval Practice" in title):
+        if user32.IsWindowVisible(hwnd) and (title.startswith("pos:") or "Retrieval Practice" in title
+                                             or "reading notes" in title):
             found.append((hwnd, title))
         return True
     user32.EnumWindows(each, 0)
@@ -230,10 +287,18 @@ def find_edge():
         if title.startswith("pos:") and edge["hwnd"] == hwnd and title.split(" - ")[0] != edge["before"]:
             from ctypes import wintypes
             import re
-            px, py, dpr = (float(v) for v in re.match(r"pos:([\d.]+),([\d.]+),([\d.]+)", title).groups())
+            body = title[4:].split(" - ")[0]
+            if ";" in body:                 # several words: "x,y;x,y;dpr"
+                *spots, dpr = body.split(";")
+                spots = [tuple(float(v) for v in spot.split(",")) for spot in spots]
+            else:
+                px, py, dpr = re.match(r"([\d.]+),([\d.]+),([\d.]+)", body).groups()
+                spots = [(float(px), float(py))]
+            dpr = float(dpr)
             r = wintypes.RECT()            # the page reports from the window's outer corner, frame included
             user32.GetWindowRect(edge["hwnd"], ctypes.byref(r))
-            edge["word"] = (r.left + int(px * dpr), r.top + int(py * dpr))
+            edge["words"] = [(r.left + int(x * dpr), r.top + int(y * dpr)) for x, y in spots]
+            edge["word"] = edge["words"][0]
     if edge["word"] is None:
         app.root.after(150, find_edge)
 
@@ -305,6 +370,48 @@ film_t0 = [time.time()]
 
 
 stacking = [True]     # off while the stills are taken
+EXTRA = []            # the app's own windows that appear in the study reel
+WANT = {}             # window -> (x, y, w, h) it should keep
+
+
+def keep_in_shot(top, x=None, y=None, size=None):
+    """Put one of the app's windows inside the filmed area (centred over the browser unless x/y given),
+    optionally at a size that fits it; again a moment later, after the window has laid itself out."""
+    def place():
+        if not top.winfo_exists():
+            return
+        top.update_idletasks()
+        w = size[0] if size else top.winfo_reqwidth()
+        xx = x if x is not None else EDGE_RECT[0] + (EDGE_RECT[2] - w) // 2
+        yy = y if y is not None else CAP_Y + 40
+        top.geometry((f"{size[0]}x{size[1]}" if size else "") + f"+{int(xx)}+{int(yy)}")
+        if size:
+            WANT[top] = (int(xx), int(yy), size[0], size[1])
+    place()
+    top.after(150, place)
+    top.after(600, place)
+    top.attributes("-topmost", True)
+    if top not in EXTRA:
+        EXTRA.append(top)
+
+
+def all_toplevels(widget=None):
+    out = []
+    for w in (widget or app.root).winfo_children():
+        if isinstance(w, tk.Toplevel):
+            out.append(w)
+        out += all_toplevels(w)
+    return out
+
+
+def adopt_new_windows(known):
+    """Any window the app opened since `known` (a celebration, a level-up card): into the shot with it."""
+    for w in all_toplevels():
+        print("toplevel", w, w.winfo_ismapped(), w in known, flush=True) if os.environ.get("DEMO_TITLES") else None
+        if w not in known and w.winfo_exists() and w.winfo_ismapped():
+            known.add(w)
+            if w not in (desk, caption, cursor) and w not in [c.top for c in pets.cats]:
+                keep_in_shot(w)
 
 
 def restack():
@@ -313,9 +420,14 @@ def restack():
     if not stacking[0]:
         return
     try:
-        desk.lift()
+        # Edge to the top of the always-on-top windows, then the desk directly under it: whatever Edge does
+        # (a popup, a new tab), the desk stays between it and the owner's windows
+        desk_hwnd = user32.GetParent(desk.winfo_id()) or desk.winfo_id()
         if edge["hwnd"]:
             user32.SetWindowPos(edge["hwnd"], HWND_TOPMOST, 0, 0, 0, 0, 0x13)   # no move/size/activate
+            user32.SetWindowPos(desk_hwnd, edge["hwnd"], 0, 0, 0, 0, 0x13)
+        else:
+            desk.lift()
         for item in pets.items.values():
             for layer in item.layers:
                 layer.top.lift()
@@ -328,6 +440,11 @@ def restack():
         for item in pets.items.values():
             if item.front:
                 item.front.top.lift()
+        for w in [w for w in EXTRA if w.winfo_exists()]:
+            want = WANT.get(w)
+            if want and (w.winfo_width(), w.winfo_height()) != want[2:]:
+                w.geometry(f"{want[2]}x{want[3]}+{want[0]}+{want[1]}")
+            w.lift()
         app.root.lift()
         if cap_geo[0] and caption.winfo_geometry() != cap_geo[0]:
             caption.geometry(cap_geo[0])
@@ -346,8 +463,14 @@ def only_demo_on_screen():
     m = 24   # the window's drop shadow darkens the wallpaper around it
     ours = [(EDGE_RECT[0] - m, EDGE_RECT[1] - m, EDGE_RECT[0] + EDGE_RECT[2] + m, EDGE_RECT[1] + EDGE_RECT[3] + m)]
     for w in [app.root, caption, cursor] + [c.top for c in pets.cats] + \
-             [layer.top for item in pets.items.values() for layer in item.layers + ([item.front] if item.front else [])] +              [w for toy in pets.toys for w in vars(toy).values() if isinstance(w, tk.Toplevel)]:
+             [layer.top for item in pets.items.values() for layer in item.layers + ([item.front] if item.front else [])] + \
+             [w for toy in pets.toys for w in vars(toy).values() if isinstance(w, tk.Toplevel)] + \
+             []:
         ours.append((w.winfo_rootx(), w.winfo_rooty(), w.winfo_rootx() + w.winfo_width(), w.winfo_rooty() + w.winfo_height()))
+    for w in [w for w in EXTRA if w.winfo_exists() and w.winfo_ismapped()]:
+        r = wintypes.RECT()
+        user32.GetWindowRect(user32.GetParent(w.winfo_id()) or w.winfo_id(), ctypes.byref(r))
+        ours.append((r.left - m, r.top - m, r.right + m, r.bottom + m))
     bad = []
     for fx in [i / 12 for i in range(13)]:
         for fy in [i / 8 for i in range(8)]:
@@ -360,8 +483,21 @@ def only_demo_on_screen():
     return bad
 
 
+def dry_snap(sec):
+    def go():
+        from PIL import ImageGrab
+        ImageGrab.grab((CAP_X, CAP_Y, CAP_X + CAP_W, CAP_Y + CAP_H)).save(os.path.join(WORK, f"dry_{REEL}_{sec:g}.png"))
+        print("snap", sec, "guard", only_demo_on_screen()[:3], flush=True)
+    return go
+
+
 def start_film():
     global ff
+    if DRY:
+        film_t0[0] = time.time()
+        for sec in DRY:
+            app.root.after(int(sec * 1000), dry_snap(sec))
+        return
     bad = only_demo_on_screen()
     if bad:
         print("NOT FILMING: something other than the demo is on screen at", bad[:6], flush=True)
@@ -395,6 +531,8 @@ def keep_checking():
 
 
 def stop_film():
+    if DRY:
+        return
     if ff and ff.poll() is None:
         ff.communicate(b"q", timeout=30)
 
@@ -550,23 +688,181 @@ if os.environ.get("DEMO_DEBUG"):
     at(2.6, debug_report)
 else:
     at(0.0, start_film)
-at(0.6, s1_start)
-at(1.6, s1_select)
-at(2.4, s1_lookup)
-at(7.5, s2_start)
-at(12.0, s2_ball)
-at(20.5, s3_start)
-at(21.6, s3_stroke)
-at(28.8, s3_click)
-at(31.8, back_to_middle)
-at(35.0, s4_start)
-at(38.5, s4_click_start)
-at(40.1, s4_progress(0.30))
-at(41.3, s4_progress(0.55))
-at(42.5, s4_progress(0.80))
-at(43.9, s4_finish)
-at(46.5, s4_feed)
-at(54.5, lambda: (stop_film(), stills()))
+
+# ---------------------------------------------------------------- the study-day reel
+
+def find_text(widget, text):
+    """The first label under `widget` whose text contains `text` (case-insensitive)."""
+    for w in widget.winfo_children():
+        if isinstance(w, tk.Label) and text.lower() in str(w.cget("text")).lower():
+            return w
+        found = find_text(w, text)
+        if found:
+            return found
+    return None
+
+
+def centre_of(w):
+    return w.winfo_rootx() + w.winfo_width() // 2, w.winfo_rooty() + w.winfo_height() // 2
+
+
+def l1_start():
+    pets.director.next_time = time.time() + 9999
+    pets.idle = lambda: 2
+    say("12 languages, either direction")
+    x, y = edge["words"][0]
+    glide(x - 60, y + 6, 900)
+
+
+def l1_select():
+    x, y = edge["words"][0]
+    glide(x + 60, y + 6, 450)
+
+
+def l_lookup(word, learn):
+    def go():
+        app.settings["learn"] = learn
+        app.lookup(word)
+    return go
+
+
+def l2_move():
+    x, y = edge["words"][1]
+    glide(x - 30, y + 6, 900)
+
+
+def l2_select():
+    x, y = edge["words"][1]
+    glide(x + 30, y + 6, 400)
+
+
+def f_open():
+    say("Counts the time you actually study")
+    app.clear_notice()
+    app.root.withdraw()           # the card waits behind the scenes while windows are open
+    feat = app.feature("focus")
+    feat.open()
+    win = feat.window("main")
+    keep_in_shot(win.top, x=EDGE_RECT[0] + 150, y=CAP_Y + 18, size=(900, 770))
+    STUDY["focus"] = win
+
+
+def f_point():
+    win = STUDY["focus"]
+    label = find_text(win.top, "goodnotes")
+    row = label.master if label else win.rows
+    chip = next((w for w in row.winfo_children() if isinstance(w, tk.Label) and w is not label), label)
+    STUDY["chip"] = chip
+    glide(*centre_of(chip), 800)
+
+
+def f_click():
+    click_flash()
+    win = STUDY["focus"]
+    win.cycle("app:goodnotes.exe", "unsorted")     # what clicking its tag does: now it counts as study
+
+
+def r_open():
+    say("A study report in your inbox, every evening")
+    STUDY["focus"].top.destroy()
+    import report
+    _, html, _, _ = report.daily(app, dt.date.today(), note=(
+        "Three hours and a quarter, most of it before lunch. Your reading notes got the longest stretch today. "
+        "Tomorrow, try one pomodoro on the midterm topics first thing, while the morning is still quiet."))
+    REPORT_HTML[0] = html
+    subprocess.Popen([EDGE, f"--user-data-dir={EDGE_PROFILE}", f"http://lab.example{REPORT_PATH}"])
+    glide(CAP_X + CAP_W - 120, CAP_Y + 320, 900)
+
+
+def m_open():
+    say("Practice levels up your bond with the cats")
+    feat = app.feature("todos")
+    feat.open()
+    win = feat.window("todos")
+    keep_in_shot(win.top, x=EDGE_RECT[0] + 110, y=CAP_Y + 30, size=(980, 520))
+    STUDY["todos"] = win
+
+
+def m_point():
+    win = STUDY["todos"]
+    label = find_text(win.top, "Retrieval practice paper")
+    box = None
+    if label:
+        box = next((w for w in label.master.winfo_children() if isinstance(w, tk.Label) and w is not label), None)
+    x, y = centre_of(box or label)
+    glide(x, y, 800)
+
+
+def m_tick():
+    click_flash()
+    known = set(all_toplevels())
+    STUDY["todos"].finish_task(STUDY["task"])      # what ticking its box does: a small celebration
+    app.root.after(300, lambda: adopt_new_windows(known))
+
+
+def m_levelup():
+    known = set(all_toplevels())
+    for w in list(EXTRA):
+        if w.winfo_exists() and w is not STUDY["todos"].top:
+            w.destroy()                                 # the celebration has had its moment
+    bond_feat = app.feature("bond")
+    del bond_feat.store.sync           # back to the real one
+    before = bond_feat.store.total()
+    bond_feat.sync()                                    # the task's points reach the next level
+    print("bond", before, "->", bond_feat.store.total(), "level", bond_feat.level(),
+          "seen", app.settings.get("bond_seen_level"), flush=True)
+    app.root.after(200, lambda: adopt_new_windows(known))
+    a, _ = a_b()
+    glide(a.centre(), a.ground - a.h * 0.55, 900)
+
+
+def m_show_cat():
+    """The windows close: there's the cat, wearing what it just unlocked."""
+    for w in list(EXTRA):
+        if w.winfo_exists():
+            w.destroy()
+    app.root.deiconify()
+    a, _ = a_b()
+    glide(a.centre() + 40, a.ground - a.h * 0.5, 700, then=lambda: (click_flash(), a.answer_you()))
+
+
+if REEL == "study":
+    at(0.6, l1_start)
+    at(1.6, l1_select)
+    at(2.4, l_lookup("aprendizaje", "es"))
+    at(6.4, l2_move)
+    at(7.6, l2_select)
+    at(8.4, l_lookup("少しずつ", "ja"))
+    at(13.2, f_open)
+    at(15.0, f_point)
+    at(16.4, f_click)
+    at(21.5, r_open)
+    at(31.5, m_open)
+    at(33.0, m_point)
+    at(34.2, m_tick)
+    at(37.4, m_levelup)
+    at(42.0, m_show_cat)
+    at(47.0, lambda: (stop_film(), edge_proc.terminate(), app.root.destroy()))
+else:
+    at(0.6, s1_start)
+    at(1.6, s1_select)
+    at(2.4, s1_lookup)
+    at(7.5, s2_start)
+    at(12.0, s2_ball)
+    at(20.5, s3_start)
+    at(21.6, s3_stroke)
+    at(28.8, s3_click)
+    at(31.8, back_to_middle)
+    at(35.0, s4_start)
+    at(38.5, s4_click_start)
+    at(40.1, s4_progress(0.30))
+    at(41.3, s4_progress(0.55))
+    at(42.5, s4_progress(0.80))
+    at(43.9, s4_finish)
+    at(46.5, s4_feed)
+    at(54.5, lambda: (stop_film(), stills()))
+
+
 
 
 # ---------------------------------------------------------------- stills

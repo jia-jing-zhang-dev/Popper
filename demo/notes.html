@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Language reading notes</title>
+<!-- Example reading notes written for the demo (Spanish and Japanese, original text). -->
+<style>
+  html, body { margin: 0; background: #ffffff; color: #1f1f1f; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; cursor: default; }
+  .sheet { max-width: 980px; margin: 0 auto; padding: 30px 56px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: #6b6b6b; font-size: 14px; margin-bottom: 22px; }
+  .block { border-left: 4px solid #3b82c4; padding: 6px 0 6px 18px; margin: 0 0 22px; }
+  .tag { font-size: 13px; letter-spacing: .08em; color: #3b82c4; font-weight: 600; text-transform: uppercase; }
+  p { font-size: 23px; line-height: 1.6; margin: 6px 0 0; }
+  .ja p { font-family: "Yu Gothic UI", "Meiryo", sans-serif; }
+  ::selection { background: #b5d5ff; color: #1f1f1f; }
+</style>
+</head>
+<body>
+<div class="sheet page active">
+  <h1>Reading notes · Week 11</h1>
+  <div class="sub">Language practice: one paragraph a day</div>
+  <div class="block">
+    <div class="tag">Español</div>
+    <p>El aprendizaje de un idioma avanza más rápido cuando repasamos las palabras justo antes de olvidarlas.</p>
+  </div>
+  <div class="block ja">
+    <div class="tag">日本語</div>
+    <p>毎日少しずつ勉強すると、新しい言葉は長く記憶に残ります。</p>
+  </div>
+</div>
+<script>
+  const pages = [...document.querySelectorAll('.page')];
+  // ?select=a,b&at=t1,t2&report=pos (or window.DEMO_QUERY): the browser selects each word at its time and
+  // clears it 3.5 s later; report=pos briefly puts every word's place in the title for the recorder.
+  const params = new URLSearchParams(window.DEMO_QUERY || location.search);
+  const words = (params.get('select') || '').split(',').filter(Boolean);
+  const times = (params.get('at') || '').split(',').map(Number);
+  function rangeOf(word) {
+    const walker = document.createTreeWalker(pages[0], NodeFilter.SHOW_TEXT);
+    for (let node; (node = walker.nextNode());) {
+      const i = node.data.indexOf(word);
+      if (i < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + word.length);
+      return range;
+    }
+    return null;
+  }
+  words.forEach((word, k) => {
+    setTimeout(() => { const r = rangeOf(word); if (r) { getSelection().removeAllRanges(); getSelection().addRange(r); } }, times[k] || 0);
+    setTimeout(() => getSelection().removeAllRanges(), (times[k] || 0) + 3500);
+  });
+  if (params.get('report') === 'pos' && words.length) {
+    const shown = document.title;
+    const report = () => {
+      const frameX = (outerWidth - innerWidth) / 2, frameY = outerHeight - innerHeight - frameX;
+      const spots = words.map(w => { const r = rangeOf(w).getBoundingClientRect();
+        return `${r.left + r.width / 2 + frameX},${r.top + r.height / 2 + frameY}`; });
+      document.title = `pos:${spots.join(';')};${devicePixelRatio}`;
+      setTimeout(() => { document.title = shown; }, 1500);
+    };
+    addEventListener('load', report);
+    let timer;
+    addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(report, 300); });
+  }
+</script>
+</body>
+</html>
