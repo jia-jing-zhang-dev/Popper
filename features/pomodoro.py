@@ -142,12 +142,27 @@ class PomodoroFeature(Feature):
             self.app.settings["pomo"] = None
             self.app.save()
             self.app.set_badge("pomo", None)
-            self.app.notify(t("pomo_break_over"), self.start_focus)
+            self.app.notify(t("pomo_break_over"), self.start_focus, mood="worried")
+            self.app.root.after(2500, self.hungry_hint)   # after the card cat's little reaction to the note
 
     def where(self, part):
         """Clicking the dots: which round this is and roughly how far along, never the minutes left."""
         key = ("pomo_where_start", "pomo_where_quarter", "pomo_where_half", "pomo_where_end")[min(3, int(part * 4))]
         self.app.flash(t("pomo_where", n=self.store.today() + 1, how=t(key)), 2500)
+
+    def hungry_hint(self):
+        """Break's over, said the cats' way: one of them goes and sits by the empty bowl, or looks up at you."""
+        pets = self.app.feature("pet")
+        if not (pets.on and pets.cats):
+            return
+        free = [c for c in reversed(pets.cats) if not c.busy()]   # the cat without the card first
+        if not free:
+            return
+        bowl = pets.items.get("food")
+        if bowl and pets.needs()["food"] <= 0.01:
+            free[0].beg(bowl)
+        else:
+            free[0].answer_you()
 
     def finish(self, st):
         """A pomodoro done: a meal for the cats, a break, and the cats say well done."""
