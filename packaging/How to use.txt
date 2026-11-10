@@ -42,6 +42,12 @@ mouse back and forth over it. Right-click → Cats… names them, picks coats an
 "Let … carry the card" hands the card to the other cat. Right-click also feeds them (one meal per finished pomodoro), tosses in a
 toy, or puts their bowls, post and bed away.
 
+Study reports by email (needs Study time on): right-click → Email study reports…. Enter the address to
+send to, your Gmail and a Gmail app password (Google account → Security → App passwords; needs 2-Step
+Verification), then Send a test now. Every day when you shut down, a report arrives: study hours, real study
+vs. time that slipped away, where, what you finished and looked up, and a note from your cat. Weekly reports
+come on Mondays, monthly ones on the 1st. If the computer went off too fast, the next start sends it.
+
 Journal (right-click → Journal…): one page per day with finished tasks and their times, new words,
 library time, and a reflection you write (saved automatically). Right-click → Library log… shows today, this week, your
 streak and a calendar heatmap. A session you forget to end stops after 8 hours.

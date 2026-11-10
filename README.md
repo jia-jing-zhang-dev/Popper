@@ -84,6 +84,13 @@ screenshot OCR, settings, and spaced-repetition review.
   lets you re-sort any program or site with one click, and past days are re-counted. Shows today,
   this week and a 7-day chart, and adds a section to the journal. Only kept on your computer. Off by
   default.
+- **Study reports by email.** Each day when you shut down, a report lands in your inbox: when you started and
+  stopped, real study time vs. time that slipped away, where (programs and sites), an hour-by-hour chart, the
+  tasks you finished, the words you looked up, your journal reflection, coming deadlines, and a short note from
+  your cat (written by Claude) comparing the day with your own recent days and suggesting one thing for tomorrow.
+  A weekly report comes on Monday and a monthly one on the 1st. If the computer went off before it could send,
+  the next start catches up. It sends from your own Gmail with an app password kept in Windows Credential
+  Manager (right-click → **Email study reports…**); it needs *Study time* on.
 - **Claude usage on the card.** A small badge shows how much of your Claude plan's 5-hour limit
   is used (grey, yellow from 50%, red from 80%); click it for when it resets, or see every limit in
   the menu. Read from Claude Code's `/usage` every 5 minutes, which uses no quota. Off by default.
@@ -142,6 +149,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
 | Focus for 25 minutes and earn the cats a meal | Right-click → **Start round … of today**, then click the card when it's done |
+| Get a study report by email every day, week and month | Right-click → **Email study reports…**, fill in your Gmail and an app password, **Send a test now** |
 | Look back on a day and write a reflection | Right-click → **Journal…** |
 | Chat with the study buddy | Right-click → **Chat with Tiger…** (the first cat's name), or click the card when it says the cat has a message |
 
