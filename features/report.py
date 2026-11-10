@@ -71,6 +71,8 @@ class ReportFeature(Feature):
     def mark(self, kind, key, study=0, sent=True):
         s = self.sent()
         if kind == "day":
+            if key in s["day"] and sent:
+                s["updated"] = (s.setdefault("updated", []) + [key])[-14:]
             s["day"][key] = study
             for old in sorted(s["day"])[:-14]:
                 del s["day"][old]
@@ -103,7 +105,8 @@ class ReportFeature(Feature):
             for day in candidates:
                 study = report.study_by_day(self.app, day, day)[day][0]
                 before = sent["day"].get(day.isoformat())
-                if before is None or study - before >= RESEND_GAIN:
+                resent = day.isoformat() in sent.setdefault("updated", [])
+                if before is None or (not resent and study - before >= RESEND_GAIN):   # one "updated" copy at most
                     out.append(("day", day, day, before is not None))
         if not at_shutdown and now.hour >= NEW_DAY_HOUR:
             if c["weekly"]:

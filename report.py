@@ -73,12 +73,20 @@ def table_exists(db, name):
     return db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone() is not None
 
 
+def split(log, totals):
+    """(study, other) seconds the way every report counts them: time in this app itself isn't study here.
+    collect() and study_by_day() must agree, or a day's report looks like it keeps gaining study and is
+    sent again and again (it was, on 2026-11-09)."""
+    totals = {k: v for k, v in totals.items() if k != "app:popper"}
+    return log.split(totals)
+
+
 def study_by_day(app, first, last):
     """{date: (study seconds, other seconds)} for each day first..last."""
     log = app.feature("focus").log
     out, day = {}, first
     while day <= last:
-        out[day] = log.split(log.by_key(day_start(day), day_start(day) + 86400))
+        out[day] = split(log, log.by_key(day_start(day), day_start(day) + 86400))
         day += dt.timedelta(days=1)
     return out
 
