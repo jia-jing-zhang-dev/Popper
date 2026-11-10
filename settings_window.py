@@ -120,15 +120,21 @@ class SettingsWindow:
         ttk.Checkbutton(body, text=t("set_autostart"), variable=self.autostart_var).grid(
             row=8, column=1, sticky="w", pady=2)
 
-        ttk.Label(body, text=t("set_features")).grid(row=9, column=0, sticky="nw", pady=(12, 4))
+        from features.pomodoro import LENGTHS, lengths
+        self.pomo_labels = [t("set_pomo_len", f=f, b=b) for f, b in LENGTHS]
+        self.pomo_var = tk.StringVar(value=self.pomo_labels[LENGTHS.index(lengths(s))])
+        row(9, "set_pomo", ttk.Combobox(body, textvariable=self.pomo_var, state="readonly",
+                                        values=self.pomo_labels, width=30))
+
+        ttk.Label(body, text=t("set_features")).grid(row=10, column=0, sticky="nw", pady=(12, 4))
         features = ttk.Frame(body)
-        features.grid(row=9, column=1, sticky="w", pady=(12, 4))
+        features.grid(row=10, column=1, sticky="w", pady=(12, 4))
         for feature in app.features:
             ttk.Checkbutton(features, text=t(feature.name_key),
                             variable=self.feature_vars[feature.id]).pack(anchor="w", pady=1)
 
         buttons = ttk.Frame(body)
-        buttons.grid(row=10, column=0, columnspan=2, sticky="e", pady=(16, 0))
+        buttons.grid(row=11, column=0, columnspan=2, sticky="e", pady=(16, 0))
         ttk.Button(buttons, text=t("set_cancel"), command=top.destroy).pack(side="right")
         ttk.Button(buttons, text=t("set_save"), command=self.save).pack(side="right", padx=6)
 
@@ -157,6 +163,8 @@ class SettingsWindow:
         s["text_size"] = next(v for k, v in SIZES if t(k) == self.size_var.get())
         s["trigger"] = self.trigger_var.get()
         s["screenshots"] = self.shots_var.get()
+        from features.pomodoro import LENGTHS
+        s["pomo_lengths"] = list(LENGTHS[self.pomo_labels.index(self.pomo_var.get())])
         s["features"] = {fid: var.get() for fid, var in self.feature_vars.items()}
         if self.autostart_var.get() != autostart_enabled():
             set_autostart(self.autostart_var.get(), self.app.script_path, getattr(sys.modules.get("__main__"), "app_icon", lambda: "")())

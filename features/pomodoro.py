@@ -1,0 +1,168 @@
+"""Pomodoro: focus for 25 minutes, then a 5-minute break (a longer one after every fourth).
+
+The countdown sits on the card's top row. Stopping a pomodoro early is fine but earns nothing. Each finished
+pomodoro earns the cats one meal (`pet_meals`, up to MAX_MEALS saved up): with this feature on, the food bowl
+can only be filled with a meal you earned. Finished pomodoros are kept in the `pomodoros` table for the journal.
+The running timer is saved in settings (`pomo`), so it survives a restart.
+"""
+
+import datetime as dt
+import time
+
+from i18n import t
+from journal import Line, Section
+from library import ACCENT, GOOD, fmt_duration
+
+from .base import Feature
+
+LENGTHS = ((25, 5), (45, 10), (50, 10), (15, 3))   # (focus, break) minutes; the first is the default
+LONG_BREAK = 15        # minutes, after every LONG_EVERY pomodoros in a day
+LONG_EVERY = 4
+MAX_MEALS = 3
+
+
+class PomodoroStore:
+    def __init__(self, db):
+        self.db = db
+        db.execute("""CREATE TABLE IF NOT EXISTS pomodoros (
+                          id INTEGER PRIMARY KEY,
+                          start REAL NOT NULL,
+                          end REAL NOT NULL,
+                          minutes INTEGER NOT NULL)""")
+        db.commit()
+
+    def add(self, start, end, minutes):
+        self.db.execute("INSERT INTO pomodoros (start, end, minutes) VALUES (?, ?, ?)", (start, end, minutes))
+        self.db.commit()
+
+    def between(self, start, end):
+        return self.db.execute("SELECT * FROM pomodoros WHERE end >= ? AND end < ? ORDER BY end", (start, end)).fetchall()
+
+    def today(self):
+        start = dt.datetime.combine(dt.date.today(), dt.time()).timestamp()
+        return len(self.between(start, start + 86400))
+
+
+def lengths(settings):
+    pair = tuple(settings.get("pomo_lengths") or LENGTHS[0])
+    return pair if pair in LENGTHS else LENGTHS[0]
+
+
+def clock(seconds):
+    m, s = divmod(max(0, int(seconds + 0.999)), 60)
+    return f"{m}:{s:02d}"
+
+
+class PomodoroFeature(Feature):
+    id = "pomodoro"
+    name_key = "feat_pomodoro"
+    default_on = True
+
+    def start(self):
+        self.store = PomodoroStore(self.app.vocab.db)
+        self.app.root.after(1000, self.tick_loop)
+
+    # ---------- state: settings["pomo"] = {"phase": "focus" | "break", "start": ts, "end": ts} or None
+
+    def state(self):
+        return self.app.settings.get("pomo")
+
+    def set_state(self, state):
+        self.app.settings["pomo"] = state
+        self.app.save()
+        self.tick()
+
+    def meals(self):
+        return int(self.app.settings.get("pet_meals", 1))   # everyone starts with one meal in hand
+
+    def use_meal(self):
+        self.app.settings["pet_meals"] = max(0, self.meals() - 1)
+        self.app.save()
+
+    def gates_feeding(self):
+        return self.on
+
+    # ---------- menu
+
+    def menu_items(self, menu):
+        st = self.state()
+        focus, rest = lengths(self.app.settings)
+        if not st:
+            menu.add_command(label=t("menu_pomo_start", m=focus), command=self.start_focus)
+        elif st["phase"] == "focus":
+            menu.add_command(label=t("menu_pomo_stop", left=clock(st["end"] - time.time())), command=self.stop)
+        else:
+            menu.add_command(label=t("menu_pomo_skip_break"), command=self.start_focus)
+
+    def start_focus(self):
+        focus, _ = lengths(self.app.settings)
+        now = time.time()
+        self.app.clear_notice()
+        self.set_state({"phase": "focus", "start": now, "end": now + focus * 60})
+        self.app.flash(t("pomo_started", m=focus))
+
+    def stop(self):
+        self.set_state(None)
+        self.app.flash(t("pomo_stopped"))
+
+    # ---------- the clock
+
+    def tick_loop(self):
+        try:
+            self.tick()
+        finally:
+            self.app.root.after(1000, self.tick_loop)
+
+    def tick(self):
+        st = self.state()
+        if not self.on or not st:
+            self.app.set_badge("pomo", None)
+            return
+        left = st["end"] - time.time()
+        if left > 0:
+            focus = st["phase"] == "focus"
+            self.app.set_badge("pomo", ("● " if focus else "◌ ") + clock(left), fg=ACCENT if focus else GOOD)
+            return
+        if st["phase"] == "focus":
+            self.finish(st)
+        else:
+            self.app.settings["pomo"] = None
+            self.app.save()
+            self.app.set_badge("pomo", None)
+            self.app.notify(t("pomo_break_over"), self.start_focus)
+
+    def finish(self, st):
+        """A pomodoro done: a meal for the cats, a break, and the cats say well done."""
+        minutes = round((st["end"] - st["start"]) / 60)
+        self.store.add(st["start"], st["end"], minutes)
+        if self.meals() < MAX_MEALS:
+            self.app.settings["pet_meals"] = self.meals() + 1
+        _, rest = lengths(self.app.settings)
+        n = self.store.today()
+        if n % LONG_EVERY == 0:
+            rest = LONG_BREAK
+        end = max(time.time(), st["end"]) + rest * 60
+        self.app.settings["pomo"] = {"phase": "break", "start": st["end"], "end": end}
+        self.app.save()
+        self.app.set_mood("celebrate", 6)
+        pets = self.app.feature("pet")
+        if pets.on and pets.cats:
+            for cat in pets.cats:
+                cat.answer_you()
+            self.app.notify(t("pomo_done_feed", n=n, m=rest), pets.feed)
+        else:
+            self.app.notify(t("pomo_done", n=n, m=rest), lambda: None)
+        self.tick()
+
+    def journal_sections(self):
+        return [pomodoro_section]
+
+
+def pomodoro_section(app, start, end):
+    rows = app.feature("pomodoro").store.between(start, end)
+    if not rows:
+        return None
+    lines = [Line(f"{dt.datetime.fromtimestamp(r['start']).strftime('%H:%M')} – "
+                  f"{dt.datetime.fromtimestamp(r['end']).strftime('%H:%M')}", right=f"{r['minutes']} min") for r in rows]
+    total = sum(r["minutes"] for r in rows) * 60
+    return Section(t("j_pomo"), t("j_pomo_sum", n=len(rows), time=fmt_duration(total)), lines)

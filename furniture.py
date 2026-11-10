@@ -113,6 +113,7 @@ class Item:
     def keep_front_on_top(self):
         if self.front:
             self.front.top.lift()
+            self.app.root.lift()   # ...but never above the card
 
     def destroy(self):
         for layer in self.layers + ([self.front] if self.front else []):

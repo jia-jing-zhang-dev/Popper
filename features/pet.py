@@ -124,6 +124,8 @@ class PetFeature(Feature):
         self.director = None
         CAT["name"] = self.names()[0]   # no card refresh yet: other features are still starting
         self.app.root.after(300, self.sync)
+        if self.cats:
+            self.app.root.lift()   # the card floats above the cats: keep it in front of them and their things
         self.app.root.after(1000, self.sync_loop)
 
     def menu_items(self, menu):
@@ -137,8 +139,15 @@ class PetFeature(Feature):
                 menu.add_command(label=t("menu_toys_away"), command=self.put_toys_away)
         if self.items:
             full = self.needs()["food"] >= 0.99
-            menu.add_command(label=t("menu_feed_full") if full else t("menu_feed"), command=self.feed,
-                             state="disabled" if full else "normal")
+            pomo = self.pomodoro()
+            if full:
+                label, ok = t("menu_feed_full"), False
+            elif pomo:   # meals are earned with pomodoros
+                meals = pomo.meals()
+                label, ok = (t("menu_feed_meals", n=meals), True) if meals else (t("menu_feed_earn"), False)
+            else:
+                label, ok = t("menu_feed"), True
+            menu.add_command(label=label, command=self.feed, state="normal" if ok else "disabled")
         if self.cats and self.can_live():
             menu.add_command(label=t("menu_furniture_away") if self.items else t("menu_furniture_out"),
                              command=self.toggle_furniture)
@@ -175,8 +184,20 @@ class PetFeature(Feature):
         self.app.settings["pet_needs"] = n
         return n
 
+    def pomodoro(self):
+        """The pomodoro feature when it's on: then each bowlful costs a meal earned with a pomodoro."""
+        pomo = self.app.feature("pomodoro")
+        return pomo if pomo.on else None
+
     def feed(self):
         """Fill the bowl; the cats come running and eat from either side."""
+        pomo = self.pomodoro()
+        if pomo:
+            if pomo.meals() <= 0:
+                return self.app.flash(t("menu_feed_earn"))
+            if self.needs()["food"] >= 0.99:
+                return   # the bowl is still full: keep the meal for later
+            pomo.use_meal()
         n = self.needs()
         n["food"] = 1.0
         n["hunger"] = [max(h, 0.6) for h in n["hunger"]]   # nobody turns down a freshly filled bowl
