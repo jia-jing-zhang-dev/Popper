@@ -25,3 +25,20 @@ paw.ico
 
 # Blender working files for the cat renders (big; the model is credited in assets/cats/CREDITS.md)
 tools/cat_render/work/
+
+# more personal data that must never be pushed: SQLite side files, copies and backups of
+# settings or the word list, saved report emails, secrets
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+settings*.json
+*.bak
+*.eml
+reports/
+.env
+*.key
+*.pem
+credentials*
+.ruff_cache/
