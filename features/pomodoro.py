@@ -1,6 +1,7 @@
 """Pomodoro: focus for 25 minutes, then a 5-minute break (a longer one after every fourth).
 
-The countdown sits on the card's top row. Stopping a pomodoro early is fine but earns nothing. Each finished
+No countdown: the card's top row shows today's rounds as dots instead, the current one filling up like a
+moon (○ ◔ ◑ ◕), so you know roughly where you are without watching the clock. Stopping a pomodoro early is fine but earns nothing. Each finished
 pomodoro earns the cats one meal (`pet_meals`, up to MAX_MEALS saved up): with this feature on, the food bowl
 can only be filled with a meal you earned. Finished pomodoros are kept in the `pomodoros` table for the journal.
 The running timer is saved in settings (`pomo`), so it survives a restart.
@@ -48,9 +49,21 @@ def lengths(settings):
     return pair if pair in LENGTHS else LENGTHS[0]
 
 
-def clock(seconds):
-    m, s = divmod(max(0, int(seconds + 0.999)), 60)
-    return f"{m}:{s:02d}"
+PHASES = "○◔◑◕"   # the round in progress: just started, a quarter, half, three quarters done
+GROUP = 4          # a small gap after every four rounds, like a set
+MAX_DOTS = 8       # beyond this: "●×9"
+
+
+def dots(done, part=None):
+    """Today's finished rounds as ●, plus the one in progress (part 0..1) as a filling moon."""
+    if done > MAX_DOTS:
+        text = f"●×{done}"
+    else:
+        text = " ".join("●" * len(chunk) for chunk in
+                        ["x" * min(GROUP, done - i) for i in range(0, done, GROUP)])
+    if part is not None:
+        text = (text + " " if text else "") + PHASES[min(len(PHASES) - 1, int(part * len(PHASES)))]
+    return text
 
 
 class PomodoroFeature(Feature):
@@ -79,18 +92,14 @@ class PomodoroFeature(Feature):
         self.app.settings["pet_meals"] = max(0, self.meals() - 1)
         self.app.save()
 
-    def gates_feeding(self):
-        return self.on
-
     # ---------- menu
 
     def menu_items(self, menu):
         st = self.state()
-        focus, rest = lengths(self.app.settings)
         if not st:
-            menu.add_command(label=t("menu_pomo_start", m=focus), command=self.start_focus)
+            menu.add_command(label=t("menu_pomo_start", n=self.store.today() + 1), command=self.start_focus)
         elif st["phase"] == "focus":
-            menu.add_command(label=t("menu_pomo_stop", left=clock(st["end"] - time.time())), command=self.stop)
+            menu.add_command(label=t("menu_pomo_stop", n=self.store.today() + 1), command=self.stop)
         else:
             menu.add_command(label=t("menu_pomo_skip_break"), command=self.start_focus)
 
@@ -99,7 +108,7 @@ class PomodoroFeature(Feature):
         now = time.time()
         self.app.clear_notice()
         self.set_state({"phase": "focus", "start": now, "end": now + focus * 60})
-        self.app.flash(t("pomo_started", m=focus))
+        self.app.flash(t("pomo_started", n=self.store.today() + 1))
 
     def stop(self):
         self.set_state(None)
@@ -118,10 +127,14 @@ class PomodoroFeature(Feature):
         if not self.on or not st:
             self.app.set_badge("pomo", None)
             return
-        left = st["end"] - time.time()
-        if left > 0:
-            focus = st["phase"] == "focus"
-            self.app.set_badge("pomo", ("● " if focus else "◌ ") + clock(left), fg=ACCENT if focus else GOOD)
+        now = time.time()
+        if now < st["end"]:
+            done = self.store.today()
+            if st["phase"] == "focus":
+                part = (now - st["start"]) / max(1, st["end"] - st["start"])
+                self.app.set_badge("pomo", dots(done, part), fg=ACCENT, on_click=lambda: self.where(part))
+            else:
+                self.app.set_badge("pomo", dots(done), fg=GOOD, on_click=lambda: self.app.flash(t("pomo_on_break")))
             return
         if st["phase"] == "focus":
             self.finish(st)
@@ -130,6 +143,11 @@ class PomodoroFeature(Feature):
             self.app.save()
             self.app.set_badge("pomo", None)
             self.app.notify(t("pomo_break_over"), self.start_focus)
+
+    def where(self, part):
+        """Clicking the dots: which round this is and roughly how far along, never the minutes left."""
+        key = ("pomo_where_start", "pomo_where_quarter", "pomo_where_half", "pomo_where_end")[min(3, int(part * 4))]
+        self.app.flash(t("pomo_where", n=self.store.today() + 1, how=t(key)), 2500)
 
     def finish(self, st):
         """A pomodoro done: a meal for the cats, a break, and the cats say well done."""

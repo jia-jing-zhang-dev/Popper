@@ -73,8 +73,9 @@ screenshot OCR, settings, and spaced-repetition review.
   spent) and tasks you can plan for any day, attach to a goal and time with a stopwatch.
   Finishing a task or a goal pops up a small celebration with how many days it took since you
   wrote it down.
-- **Pomodoros that feed the cats.** Right-click → **Start a pomodoro**: 25 minutes of focus with a countdown on
-  the card, then a 5-minute break (15 minutes after every fourth). Each finished pomodoro earns the cats one meal
+- **Pomodoros that feed the cats.** Right-click → **Start round 1 of today**: 25 minutes of focus, then a
+  5-minute break. There's no ticking countdown: the card shows today's rounds as dots (●●● ◑), the current one
+  filling up like a moon, and clicking them says which round it is and roughly how far along ("about halfway"). After every fourth round the break is 15 minutes. Each finished pomodoro earns the cats one meal
   (up to 3 saved up); click the card when it's done to fill their bowl. Stopping early earns nothing. Pick
   25+5, 45+10, 50+10 or 15+3 in Settings; finished pomodoros show in the journal.
 - **Study time, detected on its own.** The app notices which program or site is in front and whether
@@ -140,7 +141,7 @@ code-signed, so the first time it runs Windows SmartScreen asks for confirmation
 | Check in / out at the library | Right-click → **Library check-in** (turn on *Library check-in* in Settings first) |
 | Plan what to do there | Checking in opens **Goals & to-dos**, or right-click → **Goals & to-dos** |
 | See your library time and streak | Right-click → **Library log…** |
-| Focus for 25 minutes and earn the cats a meal | Right-click → **Start a pomodoro**, then click the card when it's done |
+| Focus for 25 minutes and earn the cats a meal | Right-click → **Start round … of today**, then click the card when it's done |
 | Look back on a day and write a reflection | Right-click → **Journal…** |
 | Chat with the study buddy | Right-click → **Chat with Tiger…** (the first cat's name), or click the card when it says the cat has a message |
 
