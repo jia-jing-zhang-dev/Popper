@@ -240,6 +240,10 @@ class App:
             w.bind("<Button-3>", self.show_menu)
             w.bind("<Enter>", lambda e: self.set_bg(BG_HOVER))
             w.bind("<Leave>", lambda e: self.set_bg(BG))
+        # The card's lines are labels, so dragging moves the card instead of selecting text: double-click a
+        # line to copy it, or right-click -> Copy for the whole entry
+        for w in [self.word_lbl, *self.detail_widgets]:
+            w.bind("<Double-Button-1>", lambda e, w=w: self.copy_text(w.cget("text")))
 
         self.update_status()
         self.place_window()
@@ -440,8 +444,30 @@ class App:
         for fn in self.hop_listeners:
             fn()
 
+    def copy_text(self, text):
+        """Put text on the clipboard (without it being looked up again in "copy" mode) and say so."""
+        text = (text or "").replace("\u00a0", " ").strip()   # the card's no-break spaces paste badly elsewhere
+        if not text:
+            return
+        self.ignore_clip_until = time.time() + 1.5
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.flash("✓ " + t("copied"))
+
+    def copy_current(self):
+        item = self.current
+        if not item:
+            return
+        lines = [item["word"], self.pron_text(item), item["trans"], *item["senses"]]
+        self.copy_text("\n".join(line for line in lines if line))
+
     def show_menu(self, e):
         menu = tk.Menu(self.root, tearoff=0)
+        if self.current and self.current.get("trans"):
+            word = self.current["word"]
+            menu.add_command(label=t("menu_copy", word=word if len(word) <= 24 else word[:24] + "…"),
+                             command=self.copy_current)
+            menu.add_separator()
         for feature in self.features:
             if feature.on:
                 before = menu.index("end")
